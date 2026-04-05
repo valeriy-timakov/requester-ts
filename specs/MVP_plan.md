@@ -1,103 +1,103 @@
-# Початковий технічний план MVP: Requester
+# Initial Technical MVP Plan: Requester
 
-## 1. Мета продукту
+## 1. Product Goal
 
-**Requester** — локальний desktop API client, орієнтований на передбачувану й прозору роботу з HTTP-запитами без хмарної синхронізації, без прихованої магії та з прямим мапінгом структури колекцій на файлову систему.
+**Requester** is a local desktop API client focused on predictable and transparent HTTP request handling without cloud sync, without hidden magic, and with a direct mapping between the collection structure and the file system.
 
-Продукт концептуально близький до Postman за базовим розташуванням елементів інтерфейсу, але значно простіший і повністю локальний.
+Conceptually, the product is similar to Postman in the basic layout of interface elements, but it is significantly simpler and fully local.
 
-Ключові принципи:
+Key principles:
 
-* усі запити зберігаються у файловій системі
-* структура дерева в UI відповідає структурі папок на диску
-* кожен запит є окремим файлом
-* остання відповідь зберігається поруч із запитом
-* виконання HTTP-запитів відбувається в main process
-* збереження змін виконується вручну
-* додаток не відстежує зовнішні зміни файлів і папок
-* у разі конфлікту джерелом істини вважається стан додатку
+* all requests are stored in the file system
+* the tree structure in the UI matches the folder structure on disk
+* each request is a separate file
+* the latest response is stored next to the request
+* HTTP requests are executed in the main process
+* saving changes is manual
+* the app does not track external file and folder changes
+* in case of conflicts, the app state is considered the source of truth
 
 ---
 
-## 2. Технологічна основа
+## 2. Technology Foundation
 
-### Базовий стек
+### Base stack
 
-* **Electron** — desktop shell
-* **React** — renderer UI
-* **TypeScript** — мова основної реалізації
-* **Vite** — frontend build/dev tooling
+* **Electron** for the desktop shell
+* **React** for the renderer UI
+* **TypeScript** as the primary implementation language
+* **Vite** for frontend build/dev tooling
 
-### Розподіл відповідальності
+### Responsibility split
 
 #### Renderer process
 
-Відповідає за:
+Responsible for:
 
-* дерево папок і запитів
-* вкладки відкритих запитів
-* редактор запиту
-* перегляд відповіді
+* folder and request tree
+* open request tabs
+* request editor
+* response viewer
 * dirty state
-* користувацькі дії
+* user actions
 
 #### Main process
 
-Відповідає за:
+Responsible for:
 
-* роботу з файловою системою
-* відкриття кореневої папки проекту
-* читання та запис файлів `.req` і `.resp`
-* створення, перейменування, видалення й переміщення папок і запитів
-* копіювання вкладень для multipart
-* виконання HTTP/HTTPS-запитів
-* збір redirect chain
+* file system operations
+* opening the project root folder
+* reading and writing `.req` and `.resp` files
+* creating, renaming, deleting, and moving folders and requests
+* copying multipart attachments
+* executing HTTP/HTTPS requests
+* collecting the redirect chain
 
 #### Preload / IPC
 
-Надає вузький типізований API між renderer і main.
+Provides a narrow typed API between the renderer and main processes.
 
 ---
 
-## 3. Коренева папка проекту
+## 3. Project Root Folder
 
-### Поведінка за замовчуванням
+### Default behavior
 
-Дефолтна коренева папка:
+Default root folder:
 
 `~/requester`
 
-### Правила старту
+### Startup rules
 
-1. Якщо користувач не обрав іншу кореневу папку, додаток використовує `~/requester`.
-2. Якщо `~/requester` не існує, вона створюється автоматично.
-3. Користувач може вручну відкрити іншу кореневу папку проекту.
-4. Додаток повинен пам’ятати останню відкриту кореневу папку.
+1. If the user has not selected another root folder, the app uses `~/requester`.
+2. If `~/requester` does not exist, it is created automatically.
+3. The user can manually open another project root folder.
+4. The app must remember the last opened root folder.
 
-### Де зберігати метаінформацію самого додатку
+### Where to store app metadata
 
-Метаінформацію додатку, яка **не є частиною проекту**, слід зберігати в стандартному app data каталозі Electron/OS.
+Application metadata that **is not part of the project** should be stored in the standard Electron/OS app data directory.
 
-Приклади такої метаінформації:
+Examples of such metadata:
 
-* остання відкрита коренева папка
-* глобальні UI-налаштування
-* глобальні налаштування сортування дерева в майбутньому
+* last opened root folder
+* global UI settings
+* global tree sorting settings in the future
 
-У файловому дереві самого проекту така метаінформація не зберігається.
+This metadata is not stored inside the project file tree.
 
 ---
 
-## 4. Модель файлового збереження
+## 4. File Persistence Model
 
-## 4.1. Загальний підхід
+## 4.1. General approach
 
-* папки на диску = колекції / підколекції
-* кожен запит = окремий файл з розширенням `.req`
-* остання відповідь = окремий файл з таким самим базовим ім’ям і розширенням `.resp`
-* вкладення для multipart розміщуються в тій самій папці, що і файл запиту
+* folders on disk = collections / subcollections
+* each request = a separate file with the `.req` extension
+* latest response = a separate file with the same base name and the `.resp` extension
+* multipart attachments are placed in the same folder as the request file
 
-### Приклад структури
+### Example structure
 
 ```text
 ~/requester/
@@ -111,29 +111,29 @@
     invoice-sample.pdf
 ```
 
-## 4.2. Правила іменування
+## 4.2. Naming rules
 
-* назва запиту в UI тотожна імені файлу
-* при перейменуванні запиту в UI перейменовується файл `.req`
-* відповідний `.resp` також повинен бути перейменований разом із запитом, якщо існує
-* при переміщенні запиту в іншу папку переміщуються також пов’язані файли
+* the request name in the UI matches the file name
+* when renaming a request in the UI, the `.req` file is renamed
+* the corresponding `.resp` must also be renamed together with the request if it exists
+* when moving a request to another folder, the related files are moved as well
 
-## 4.3. Формат збереження
+## 4.3. Storage format
 
-Основний формат — **JSON**.
+The primary format is **JSON**.
 
-Причини вибору:
+Reasons for choosing it:
 
-* природний для TypeScript/JS-стеку
-* простий у серіалізації й десеріалізації
-* простий для ручного перегляду та дебагу
-* легко розширюється в майбутньому
+* natural for the TypeScript/JS stack
+* simple to serialize and deserialize
+* easy for manual inspection and debugging
+* easily extensible in the future
 
 ---
 
-## 5. Формат файлу запиту (`.req`)
+## 5. Request File Format (`.req`)
 
-## 5.1. Базова структура
+## 5.1. Basic structure
 
 ```json
 {
@@ -159,7 +159,7 @@
 }
 ```
 
-## 5.2. Підтримувані методи в MVP
+## 5.2. Methods supported in the MVP
 
 * GET
 * POST
@@ -167,7 +167,7 @@
 * PATCH
 * DELETE
 
-## 5.3. Підтримувані типи body в MVP
+## 5.3. Body types supported in the MVP
 
 * `none`
 * `text`
@@ -175,7 +175,7 @@
 * `xml`
 * `form-data`
 
-### Приклад `json`
+### `json` example
 
 ```json
 "body": {
@@ -184,7 +184,7 @@
 }
 ```
 
-### Приклад `xml`
+### `xml` example
 
 ```json
 "body": {
@@ -193,7 +193,7 @@
 }
 ```
 
-### Приклад `text`
+### `text` example
 
 ```json
 "body": {
@@ -202,7 +202,7 @@
 }
 ```
 
-### Приклад `form-data`
+### `form-data` example
 
 ```json
 "body": {
@@ -214,15 +214,15 @@
 }
 ```
 
-## 5.4. Auth у MVP
+## 5.4. Auth in the MVP
 
-Підтримуються:
+Supported:
 
 * `none`
 * `bearer`
 * `basic`
 
-### Приклад `bearer`
+### `bearer` example
 
 ```json
 "auth": {
@@ -231,7 +231,7 @@
 }
 ```
 
-### Приклад `basic`
+### `basic` example
 
 ```json
 "auth": {
@@ -241,25 +241,25 @@
 }
 ```
 
-## 5.5. Заголовки
+## 5.5. Headers
 
-* підтримується довільне редагування headers
-* це дозволяє вручну реалізувати й інші види авторизації через custom headers
+* arbitrary header editing is supported
+* this also allows other authorization types to be implemented manually through custom headers
 
 ## 5.6. Redirect settings
 
-Для кожного запиту зберігається опція:
+For each request, the following option is stored:
 
 * `followRedirects: true|false`
 
 ---
 
-## 6. Формат файлу відповіді (`.resp`)
+## 6. Response File Format (`.resp`)
 
-Файл `.resp` містить **останню виконану відповідь** для відповідного запиту.
-Він автоматично перезаписується після кожного нового виконання.
+The `.resp` file contains the **latest executed response** for the corresponding request.
+It is automatically overwritten after each new execution.
 
-### Приклад структури
+### Example structure
 
 ```json
 {
@@ -285,159 +285,159 @@
 }
 ```
 
-### Правила
+### Rules
 
-* `.resp` не редагується вручну як основний сценарій
-* це збережений результат останнього виконання запиту
-* історія виконань поза межами MVP
-
----
-
-## 7. Дерево колекцій і файлова модель
-
-## 7.1. Що може містити папка
-
-У MVP папка може містити:
-
-* підпапки
-* файли запитів `.req`
-* пов’язані файли вкладень
-* файли відповідей `.resp`
-
-В UI у дереві слід показувати лише:
-
-* підпапки
-* файли `.req`
-
-Файли вкладень і `.resp` не відображаються як окремі вузли дерева.
-
-## 7.2. Сортування
-
-Поточне правило сортування в дереві:
-
-* спочатку папки
-* потім запити
-* всередині кожної групи — сортування за алфавітом
-
-У майбутньому може бути додане глобальне налаштування альтернативного сортування.
-
-## 7.3. Операції над деревом
-
-У MVP підтримуються:
-
-* створення папки
-* створення нового запиту
-* перейменування папки
-* перейменування запиту
-* видалення папки
-* видалення запиту
-* drag-and-drop переміщення запиту між папками
-
-### Поведінка drag-and-drop
-
-* фізично переміщується файл `.req`
-* фізично переміщується пов’язаний `.resp`, якщо існує
-* фізично переміщуються пов’язані вкладення
+* `.resp` is not manually edited as the primary workflow
+* it is the saved result of the latest request execution
+* execution history is out of scope for the MVP
 
 ---
 
-## 8. Поведінка редактора і вкладок
+## 7. Collection Tree and File Model
 
-## 8.1. Вкладки
+## 7.1. What a folder can contain
 
-* можна відкривати кілька запитів одночасно
-* кожен відкритий запит живе в окремій вкладці
-* вкладка показує dirty state, якщо є незбережені зміни
+In the MVP, a folder can contain:
 
-## 8.2. Збереження
+* subfolders
+* `.req` request files
+* related attachment files
+* `.resp` response files
 
-* збереження **ручне**
-* гаряча клавіша: `Ctrl+S`
-* також має бути кнопка збереження з іконкою
+In the UI tree, only the following should be shown:
 
-## 8.3. Закриття вкладки
+* subfolders
+* `.req` files
 
-Якщо вкладка містить незбережені зміни:
+Attachment files and `.resp` files are not displayed as separate tree nodes.
 
-* користувач отримує попередження
-* закриття без підтвердження не виконується
+## 7.2. Sorting
 
-## 8.4. Закриття додатку
+Current tree sorting rule:
 
-Якщо є незбережені вкладки:
+* folders first
+* then requests
+* alphabetical sorting within each group
 
-* користувач отримує попередження
-* закриття без підтвердження не виконується
+A global alternative sorting setting may be added in the future.
+
+## 7.3. Tree operations
+
+Supported in the MVP:
+
+* create folder
+* create new request
+* rename folder
+* rename request
+* delete folder
+* delete request
+* drag-and-drop request movement between folders
+
+### Drag-and-drop behavior
+
+* the `.req` file is physically moved
+* the related `.resp` is physically moved if it exists
+* related attachments are physically moved
+
+---
+
+## 8. Editor and Tab Behavior
+
+## 8.1. Tabs
+
+* multiple requests can be opened at the same time
+* each open request lives in its own tab
+* the tab shows dirty state if there are unsaved changes
+
+## 8.2. Saving
+
+* saving is **manual**
+* hotkey: `Ctrl+S`
+* there should also be a save button with an icon
+
+## 8.3. Closing a tab
+
+If a tab contains unsaved changes:
+
+* the user receives a warning
+* closing without confirmation is not allowed
+
+## 8.4. Closing the app
+
+If there are unsaved tabs:
+
+* the user receives a warning
+* closing without confirmation is not allowed
 
 ## 8.5. Autosave
 
-* відсутній
+* not present
 
-## 8.6. Зовнішні зміни файлів
+## 8.6. External file changes
 
-* не відстежуються
-* стан додатку вважається авторитетним, поки він запущений
+* not tracked
+* the app state is considered authoritative while the app is running
 
 ---
 
-## 9. Виконання HTTP-запитів
+## 9. HTTP Request Execution
 
-## 9.1. Де виконуються запити
+## 9.1. Where requests are executed
 
-Усі запити виконуються в **main process**.
+All requests are executed in the **main process**.
 
-Причини:
+Reasons:
 
-* відсутність CORS-обмежень renderer
-* більший контроль над виконанням
-* краща інтеграція з файловою системою
-* зручніша робота з multipart-вкладеннями
-* можливість у майбутньому розширювати транспортний шар
+* no renderer CORS limitations
+* greater control over execution
+* better integration with the file system
+* more convenient handling of multipart attachments
+* the ability to extend the transport layer in the future
 
-## 9.2. Протоколи MVP
+## 9.2. MVP protocols
 
 * HTTP
 * HTTPS
 
 ## 9.3. Redirect behavior
 
-* налаштовується на рівні конкретного запиту
-* redirect chain збирається і показується у відповіді
+* configured per request
+* the redirect chain is collected and shown in the response
 
 ## 9.4. TLS/SSL control
 
-Не входить у MVP.
+Not included in the MVP.
 
 ---
 
-## 10. Multipart і вкладення
+## 10. Multipart and Attachments
 
-## 10.1. Підхід
+## 10.1. Approach
 
-Для `form-data` вкладення зберігаються в тій самій папці, що й файл запиту.
+For `form-data`, attachments are stored in the same folder as the request file.
 
-## 10.2. Поведінка при додаванні файлу
+## 10.2. Behavior when adding a file
 
-1. Користувач обирає файл через діалог.
-2. Файл копіюється в папку запиту.
-3. Якщо ім’я конфліктує з наявним файлом, виконується автоматичне перейменування.
-4. У `.req` зберігається відносне ім’я файлу.
+1. The user selects a file through a dialog.
+2. The file is copied into the request folder.
+3. If the name conflicts with an existing file, automatic renaming is performed.
+4. The relative file name is stored in `.req`.
 
-## 10.3. Правило посилання
+## 10.3. Reference rule
 
-У MVP посилання зберігається лише по імені файлу, оскільки файл лежить у тій самій папці.
+In the MVP, the reference is stored only as the file name because the file is located in the same folder.
 
-## 10.4. Переміщення запиту
+## 10.4. Moving a request
 
-Під час переміщення або перейменування запиту пов’язані файли також мають бути переміщені/перейменовані коректно.
+When moving or renaming a request, the related files must also be moved/renamed correctly.
 
 ---
 
-## 11. Відображення відповіді
+## 11. Response Rendering
 
-## 11.1. Що показуємо
+## 11.1. What is displayed
 
-У response viewer показуються:
+The response viewer shows:
 
 * status
 * status text
@@ -447,65 +447,65 @@
 * body
 * redirect chain
 
-## 11.2. Режими перегляду body
+## 11.2. Body view modes
 
-Окремі вкладки:
+Separate tabs:
 
 * **Raw**
 * **Pretty**
 
 ## 11.3. Pretty behavior
 
-* для JSON і XML виконується pretty rendering, якщо парсинг успішний
-* якщо парсинг неуспішний, показується fallback на raw representation
+* for JSON and XML, pretty rendering is applied if parsing succeeds
+* if parsing fails, a fallback raw representation is shown
 
 ---
 
-## 12. Межі MVP
+## 12. MVP Boundaries
 
-## 12.1. Що входить у MVP
+## 12.1. What is included in the MVP
 
-* дерево папок і запитів
-* файлове збереження `.req`
-* файлове збереження `.resp`
-* дефолтна коренева папка `~/requester`
-* можливість відкрити іншу кореневу папку
+* folder and request tree
+* `.req` file persistence
+* `.resp` file persistence
+* default root folder `~/requester`
+* ability to open another root folder
 * HTTP/HTTPS
-* методи GET / POST / PUT / PATCH / DELETE
+* GET / POST / PUT / PATCH / DELETE methods
 * query params
 * headers
 * body: text / json / xml / form-data
 * auth: none / bearer / basic
-* виконання запитів у main process
+* request execution in the main process
 * redirect chain
 * raw/pretty response tabs
-* multipart attachments поруч із запитом
-* ручне збереження
-* вкладки відкритих запитів
-* попередження при закритті з незбереженими змінами
+* multipart attachments next to the request
+* manual saving
+* open request tabs
+* warning on close with unsaved changes
 
-## 12.2. Що не входить у MVP
+## 12.2. What is not included in the MVP
 
 * environment variables
-* історія виконань, окрім одного `.resp`
-* відстеження зовнішніх змін файлової системи
+* execution history beyond a single `.resp`
+* tracking of external file system changes
 * autosave
 * OAuth2 flow
 * cookie jar
-* TLS custom configuration
+* custom TLS configuration
 * GraphQL
 * WebSocket
 * gRPC
 * scripting / tests / pre-request scripts
-* import з Postman / Insomnia
+* import from Postman / Insomnia
 * cloud sync
 * user accounts
 
 ---
 
-## 13. IPC API: початковий контракт
+## 13. IPC API: Initial Contract
 
-Нижче перелік базових IPC-операцій, які мають бути доступні renderer.
+Below is the list of basic IPC operations that should be available to the renderer.
 
 ### Project / root folder
 
@@ -547,11 +547,11 @@
 
 * `confirmCloseWithDirtyTabs()`
 
-Це не фінальна сигнатура, а стартовий функціональний набір.
+This is not the final signature, but the initial functional set.
 
 ---
 
-## 14. Базові доменні моделі
+## 14. Basic Domain Models
 
 ## 14.1. RequestFile
 
@@ -585,7 +585,7 @@
 * path
 * name
 * type: `folder | request`
-* children? (для folder)
+* children? (for folder)
 
 ## 14.4. OpenTab
 
@@ -597,7 +597,7 @@
 
 ---
 
-## 15. Орієнтовна структура коду
+## 15. Suggested Code Structure
 
 ```text
 electron/
@@ -633,9 +633,9 @@ src/
 
 ---
 
-## 16. Порядок реалізації
+## 16. Implementation Order
 
-## Phase 1 — Foundation
+## Phase 1 - Foundation
 
 * root folder handling
 * default `~/requester`
@@ -644,7 +644,7 @@ src/
 * tree reading
 * create/rename/delete folder and request
 
-## Phase 2 — Request editor
+## Phase 2 - Request editor
 
 * open request in tab
 * request file format
@@ -652,7 +652,7 @@ src/
 * dirty state
 * close protection
 
-## Phase 3 — HTTP execution
+## Phase 3 - HTTP execution
 
 * execute in main process
 * methods
@@ -662,7 +662,7 @@ src/
 * save `.resp`
 * raw response viewer
 
-## Phase 4 — Extended request features
+## Phase 4 - Extended request features
 
 * bearer/basic auth
 * form-data
@@ -670,7 +670,7 @@ src/
 * redirect chain
 * pretty response tabs
 
-## Phase 5 — UX polish
+## Phase 5 - UX polish
 
 * drag-and-drop move
 * rename edge cases
@@ -680,19 +680,19 @@ src/
 
 ---
 
-## 17. Відкриті питання, які можна залишити на наступний етап
+## 17. Open Questions That Can Be Left for the Next Stage
 
-Цей документ вже достатній для старту MVP. Далі можна окремо деталізувати:
+This document is already sufficient to start the MVP. The following can be detailed separately later:
 
-* точні TypeScript типи для `.req` і `.resp`
-* сигнатури IPC методів
-* сценарії обробки помилок файлової системи
-* правила виявлення й прив’язки пов’язаних вкладень
-* структуру React state management без зайвого overengineering
-* правила pretty-rendering JSON/XML
+* exact TypeScript types for `.req` and `.resp`
+* IPC method signatures
+* file system error handling scenarios
+* rules for detecting and binding related attachments
+* React state management structure without unnecessary overengineering
+* pretty-rendering rules for JSON/XML
 
 ---
 
-## 18. Підсумок
+## 18. Summary
 
-MVP Requester — це локальний файлово-орієнтований API client з передбачуваною структурою збереження, ручним контролем над змінами, виконанням HTTP-запитів у main process і простим, але практичним набором можливостей, достатнім для повсякденної роботи з HTTP API без зайвих функцій Postman.
+MVP Requester is a local file-oriented API client with a predictable storage structure, manual control over changes, HTTP request execution in the main process, and a simple but practical feature set sufficient for everyday work with HTTP APIs without the extra complexity of Postman.

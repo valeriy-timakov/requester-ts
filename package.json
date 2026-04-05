@@ -1,0 +1,63 @@
+{
+  "name": "requester",
+  "version": "1.0.0",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev:ui": "vite",
+    "dev:electron": "npm run build:electron && wait-on tcp:5173 && electron .",
+    "dev": "concurrently -k \"npm:dev:ui\" \"npm:dev:electron\"",
+    "build:ui": "vite build",
+    "build:electron": "tsc -p tsconfig.node.json",
+    "build": "npm run build:ui && npm run build:electron",
+    "start": "electron .",
+    "pack": "npm run build && electron-builder",
+    "test": "vitest",
+    "lint": "set ESLINT_USE_FLAT_CONFIG=false&& eslint ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "build": {
+    "appId": "com.local.api-client",
+    "productName": "Local API Client",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist",
+      "dist-electron"
+    ]
+  },
+  "dependencies": {
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.0.0-rc.12",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^25.5.2",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.58.0",
+    "@typescript-eslint/parser": "^8.58.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^9.2.1",
+    "electron": "^41.1.1",
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.39.4",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "jsdom": "^29.0.1",
+    "playwright": "^1.59.1",
+    "prettier": "^3.8.1",
+    "typescript": "^6.0.2",
+    "typescript-eslint": "^8.58.0",
+    "vite": "^8.0.3",
+    "vitest": "^4.1.2",
+    "wait-on": "^9.0.4"
+  }
+}
