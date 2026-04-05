@@ -1,13 +1,15 @@
 {
   "name": "requester",
   "version": "1.0.0",
-  "main": "dist-electron/main.js",
+  "main": "dist-electron/electron/main.js",
   "scripts": {
+    "dev:stop": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$project=(Get-Location).Path; Get-CimInstance Win32_Process | Where-Object { ($_.Name -eq 'node.exe' -or $_.Name -eq 'electron.exe') -and $_.CommandLine -like ('*' + $project + '*') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }\"",
+    "predev": "npm run dev:stop",
     "dev:ui": "vite",
     "dev:electron": "npm run build:electron && wait-on tcp:5173 && electron .",
     "dev": "concurrently -k \"npm:dev:ui\" \"npm:dev:electron\"",
     "build:ui": "vite build",
-    "build:electron": "tsc -p tsconfig.node.json",
+    "build:electron": "node -e \"require('fs').rmSync('dist-electron', { recursive: true, force: true })\" && tsc -p tsconfig.node.json",
     "build": "npm run build:ui && npm run build:electron",
     "start": "electron .",
     "pack": "npm run build && electron-builder",

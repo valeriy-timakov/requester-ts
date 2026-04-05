@@ -43,19 +43,6 @@
   word-break: break-word;
 }
 
-.open-folder-button {
-  border: 1px solid rgba(137, 169, 255, 0.4);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(79, 118, 216, 0.96), rgba(57, 88, 161, 0.96));
-  color: #f5f8ff;
-  padding: 10px 14px;
-  cursor: pointer;
-}
-
-.open-folder-button:hover {
-  background: linear-gradient(180deg, rgba(93, 133, 233, 0.96), rgba(63, 95, 173, 0.96));
-}
-
 .workspace {
   display: grid;
   grid-template-rows: auto 1fr;

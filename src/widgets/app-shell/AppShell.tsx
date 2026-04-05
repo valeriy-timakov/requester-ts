@@ -36,20 +36,6 @@ export function AppShell() {
     }
   }
 
-  async function handleOpenFolder() {
-    setError(null);
-
-    try {
-      const state = await window.requesterApi.openRootFolderDialog();
-      setAppState(state);
-      await loadTree();
-    } catch (openError) {
-      setError(
-        openError instanceof Error ? openError.message : 'Failed to open selected folder.'
-      );
-    }
-  }
-
   useEffect(() => {
     void loadInitialState();
   }, []);
@@ -64,9 +50,6 @@ export function AppShell() {
               {appState.currentRootFolder || 'Loading...'}
             </div>
           </div>
-          <button className="open-folder-button" onClick={handleOpenFolder} type="button">
-            Open Folder
-          </button>
         </div>
 
         <div className="sidebar__body">

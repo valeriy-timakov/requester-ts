@@ -1,10 +1,54 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Menu } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc';
-import { resolveInitialRootFolder } from './services/projectService';
+import { getCurrentRootFolder, openRootFolderDialog, resolveInitialRootFolder } from './services/projectService';
 
 const isDev = !app.isPackaged;
+const devServerUrl = 'http://127.0.0.1:5173';
 let mainWindow: BrowserWindow | null = null;
+
+function refreshWindowState(): void {
+  if (!mainWindow) {
+    return;
+  }
+
+  if (isDev) {
+    mainWindow.loadURL(devServerUrl);
+    return;
+  }
+
+  mainWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'));
+}
+
+async function handleOpenRootFolderFromMenu(): Promise<void> {
+  const previousRootFolder = await getCurrentRootFolder();
+  const nextAppState = await openRootFolderDialog();
+
+  if (nextAppState.currentRootFolder !== previousRootFolder) {
+    refreshWindowState();
+  }
+}
+
+function createApplicationMenu(): void {
+  const menu = Menu.buildFromTemplate([
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Open Folder...',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            void handleOpenRootFolderFromMenu();
+          }
+        },
+        { type: 'separator' },
+        { role: 'quit', label: 'Quit' }
+      ]
+    }
+  ]);
+
+  Menu.setApplicationMenu(menu);
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -18,8 +62,7 @@ function createWindow(): void {
   });
 
   if (isDev) {
-    mainWindow.loadURL('http://127.0.0.1:5173');
-    mainWindow.webContents.openDevTools();
+    mainWindow.loadURL(devServerUrl);
   } else {
     mainWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'));
   }
@@ -27,6 +70,7 @@ function createWindow(): void {
 
 app.whenReady().then(() => {
   registerIpcHandlers();
+  createApplicationMenu();
   resolveInitialRootFolder()
     .catch(() => null)
     .finally(() => {

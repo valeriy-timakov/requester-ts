@@ -1,4 +1,4 @@
-import { app } from 'electron';
+import { app, dialog } from 'electron';
 import { mkdir, stat } from 'fs/promises';
 import path from 'path';
 import type { AppState } from '../../src/shared/types/requester';
@@ -57,6 +57,23 @@ export async function setRootFolder(folderPath: string): Promise<string> {
   await updateLastOpenedRootFolder(folderPath);
 
   return currentRootFolder;
+}
+
+export async function openRootFolderDialog(): Promise<AppState> {
+  const currentRootFolder = await getCurrentRootFolder();
+  const result = await dialog.showOpenDialog({
+    title: 'Open Root Folder',
+    defaultPath: currentRootFolder,
+    properties: ['openDirectory']
+  });
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return getAppState();
+  }
+
+  await setRootFolder(result.filePaths[0]);
+
+  return getAppState();
 }
 
 export async function getAppState(): Promise<AppState> {
