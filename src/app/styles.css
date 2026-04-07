@@ -2,7 +2,11 @@
   font-family: 'Segoe UI', sans-serif;
   color: #e7ecf3;
   background:
-    radial-gradient(circle at top left, rgba(83, 128, 255, 0.16), transparent 34%),
+    radial-gradient(
+      circle at top left,
+      rgba(83, 128, 255, 0.16),
+      transparent 34%
+    ),
     linear-gradient(180deg, #141922 0%, #0b0f15 100%);
 }
 

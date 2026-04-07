@@ -1,7 +1,11 @@
 import { app, BrowserWindow, Menu } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc';
-import { getCurrentRootFolder, openRootFolderDialog, resolveInitialRootFolder } from './services/projectService';
+import {
+  getCurrentRootFolder,
+  openRootFolderDialog,
+  resolveInitialRootFolder
+} from './services/projectService';
 
 const isDev = !app.isPackaged;
 const devServerUrl = 'http://127.0.0.1:5173';

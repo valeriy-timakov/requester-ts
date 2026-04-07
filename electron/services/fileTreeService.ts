@@ -7,7 +7,9 @@ function compareTreeEntries(left: TreeEntry, right: TreeEntry): number {
     return left.type === 'folder' ? -1 : 1;
   }
 
-  return left.name.localeCompare(right.name, undefined, { sensitivity: 'base' });
+  return left.name.localeCompare(right.name, undefined, {
+    sensitivity: 'base'
+  });
 }
 
 async function readFolderEntries(folderPath: string): Promise<TreeEntry[]> {
@@ -27,7 +29,10 @@ async function readFolderEntries(folderPath: string): Promise<TreeEntry[]> {
       continue;
     }
 
-    if (directoryEntry.isFile() && path.extname(directoryEntry.name) === '.req') {
+    if (
+      directoryEntry.isFile() &&
+      path.extname(directoryEntry.name) === '.req'
+    ) {
       treeEntries.push({
         path: entryPath,
         name: path.basename(directoryEntry.name, '.req'),

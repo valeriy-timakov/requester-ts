@@ -26,6 +26,23 @@
   padding: 12px 0 20px;
 }
 
+.tree-toolbar {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 12px;
+}
+
+.tree-toolbar button,
+.tree-node__actions button,
+.action-button,
+.tab-chip__button,
+.tab-chip__close,
+.tree-node__main {
+  border: 0;
+  background: none;
+  color: inherit;
+}
+
 .eyebrow,
 .workspace__label {
   font-size: 12px;
@@ -41,6 +58,14 @@
   line-height: 1.5;
   color: #f3f7fd;
   word-break: break-word;
+}
+
+.inline-error {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(124, 28, 28, 0.22);
+  color: #ffc2c2;
+  line-height: 1.4;
 }
 
 .workspace {
@@ -67,6 +92,48 @@
   padding: 24px 20px;
 }
 
+.tabs-empty {
+  margin-top: 12px;
+  color: #9cacc7;
+}
+
+.tabs-list {
+  display: flex;
+  gap: 10px;
+  overflow: auto;
+  margin-top: 12px;
+  padding-bottom: 4px;
+}
+
+.tab-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(167, 180, 204, 0.18);
+  border-radius: 14px;
+  background: rgba(10, 14, 20, 0.65);
+}
+
+.tab-chip--active {
+  border-color: rgba(124, 196, 255, 0.52);
+  background: rgba(19, 30, 44, 0.95);
+}
+
+.tab-chip__button,
+.tab-chip__close {
+  cursor: pointer;
+}
+
+.tab-chip__button {
+  padding: 10px 0 10px 14px;
+  white-space: nowrap;
+}
+
+.tab-chip__close {
+  padding: 10px 12px 10px 0;
+  color: #9cacc7;
+}
+
 .workspace__placeholder {
   margin-top: 12px;
   color: #c1cbda;
@@ -82,10 +149,24 @@
 .tree-node {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  min-height: 36px;
+  padding-right: 12px;
+  color: #dce6f4;
+}
+
+.tree-node--clickable .tree-node__main {
+  cursor: pointer;
+}
+
+.tree-node__main {
+  display: flex;
+  align-items: center;
   gap: 10px;
   min-height: 36px;
-  padding-right: 20px;
-  color: #dce6f4;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
 }
 
 .tree-node__icon {
@@ -108,6 +189,133 @@
 
 .tree-node--request .tree-node__icon {
   color: #8be1b0;
+}
+
+.tree-node__actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tree-toolbar button,
+.tree-node__actions button,
+.action-button {
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(140, 160, 192, 0.14);
+  cursor: pointer;
+}
+
+.tree-node__delete {
+  color: #ff9f9f;
+}
+
+.action-button--primary {
+  background: linear-gradient(135deg, #2f8fff, #45c6ff);
+  color: #081019;
+  font-weight: 700;
+}
+
+.editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.editor-panel__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.editor-panel__subtitle {
+  margin-top: 8px;
+  color: #9cacc7;
+}
+
+.editor-empty {
+  min-height: 100%;
+}
+
+.editor-row {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+}
+
+.field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.field-group--compact {
+  min-width: 180px;
+}
+
+.field-group__label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8fa0bd;
+}
+
+.field-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 14px;
+  border: 1px solid rgba(167, 180, 204, 0.18);
+  border-radius: 12px;
+  background: rgba(10, 14, 20, 0.72);
+  color: #f3f7fd;
+}
+
+.save-indicator {
+  padding-bottom: 10px;
+  color: #9cacc7;
+}
+
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 6, 10, 0.62);
+  backdrop-filter: blur(6px);
+}
+
+.dialog-card {
+  width: min(420px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+  border: 1px solid rgba(167, 180, 204, 0.18);
+  border-radius: 18px;
+  background: #101722;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.4);
+}
+
+.dialog-card__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f3f7fd;
+}
+
+.dialog-card__message {
+  color: #c1cbda;
+  line-height: 1.6;
+}
+
+.dialog-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .tree-empty {
@@ -133,5 +341,17 @@
   .workspace__tabs,
   .workspace__content {
     margin: 16px;
+  }
+
+  .tree-node {
+    align-items: flex-start;
+    gap: 8px;
+    flex-direction: column;
+  }
+
+  .tree-node__actions,
+  .editor-panel__header,
+  .editor-row {
+    width: 100%;
   }
 }
