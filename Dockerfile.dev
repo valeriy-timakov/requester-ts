@@ -1,0 +1,20 @@
+FROM node:20-bookworm
+
+# базові пакети + electron deps
+RUN apt-get update && apt-get install -y \
+    git curl ca-certificates \
+    libgtk-3-0 libnss3 libxss1 libasound2 \
+    libx11-xcb1 libxcomposite1 libxdamage1 libxrandr2 \
+    libgbm1 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+    libdrm2 libxkbcommon0 libxfixes3 \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
+
+# щоб не працювати як root
+RUN useradd -ms /bin/bash dev
+
+USER dev
+WORKDIR /workspace
+
+# npm кеш
+ENV npm_config_cache=/home/dev/.npm

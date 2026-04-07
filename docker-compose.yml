@@ -1,0 +1,15 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+      - npm-cache:/home/dev/.npm
+      - node-modules:/workspace/node_modules
+    command: bash -lc "sleep infinity"
+
+volumes:
+  npm-cache:
+  node-modules:
