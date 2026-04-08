@@ -5,7 +5,9 @@ export const HTTP_METHODS: HttpMethod[] = [
   'POST',
   'PUT',
   'PATCH',
-  'DELETE'
+  'DELETE',
+  'HEAD',
+  'OPTIONS'
 ];
 
 export function cloneRequestFile(requestFile: RequestFile): RequestFile {

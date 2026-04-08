@@ -1,7 +1,11 @@
 import { access, copyFile, mkdir, readFile, rm, stat, writeFile } from 'fs/promises';
 import path from 'path';
 import type {
+  HttpMethod,
+  KeyValueEntry,
   RequestAttachment,
+  RequestAuth,
+  RequestBody,
   RequestExecutionResponse,
   RequestFile
 } from '../../src/shared/types/requester';
@@ -33,6 +37,15 @@ const RESERVED_FILE_NAMES = new Set([
 ]);
 
 export const DEFAULT_REQUEST_NAME = 'New Request';
+const HTTP_METHODS: HttpMethod[] = [
+  'GET',
+  'POST',
+  'PUT',
+  'PATCH',
+  'DELETE',
+  'HEAD',
+  'OPTIONS'
+];
 
 export function createDefaultRequest(name = DEFAULT_REQUEST_NAME): RequestFile {
   return {
@@ -133,11 +146,106 @@ function normalizeAttachments(attachments: unknown): RequestAttachment[] {
   return result;
 }
 
-function normalizeRequestFile(requestFile: RequestFile): RequestFile {
+function normalizeMethod(method: unknown): HttpMethod {
+  if (typeof method !== 'string') {
+    return 'GET';
+  }
+
+  const normalizedMethod = method.toUpperCase() as HttpMethod;
+  if (HTTP_METHODS.includes(normalizedMethod)) {
+    return normalizedMethod;
+  }
+
+  return 'GET';
+}
+
+function normalizeEntries(entries: unknown): KeyValueEntry[] {
+  if (!Array.isArray(entries)) {
+    return [];
+  }
+
+  return entries
+    .map((entry) => {
+      if (!entry || typeof entry !== 'object') {
+        return null;
+      }
+
+      const candidate = entry as Partial<KeyValueEntry>;
+      return {
+        key: typeof candidate.key === 'string' ? candidate.key : '',
+        value: typeof candidate.value === 'string' ? candidate.value : ''
+      };
+    })
+    .filter((entry): entry is KeyValueEntry => entry !== null);
+}
+
+function normalizeAuth(auth: unknown): RequestAuth {
+  if (!auth || typeof auth !== 'object') {
+    return { type: 'none' };
+  }
+
+  const candidate = auth as Partial<RequestAuth>;
+
+  if (candidate.type === 'basic') {
+    return {
+      type: 'basic',
+      username: typeof candidate.username === 'string' ? candidate.username : '',
+      password: typeof candidate.password === 'string' ? candidate.password : ''
+    };
+  }
+
+  if (candidate.type === 'bearer') {
+    return {
+      type: 'bearer',
+      token: typeof candidate.token === 'string' ? candidate.token : ''
+    };
+  }
+
+  return { type: 'none' };
+}
+
+function normalizeBody(body: unknown): RequestBody {
+  if (!body || typeof body !== 'object') {
+    return { type: 'none' };
+  }
+
+  const candidate = body as Partial<RequestBody>;
+  if (
+    candidate.type === 'text' ||
+    candidate.type === 'json' ||
+    candidate.type === 'xml'
+  ) {
+    return {
+      type: candidate.type,
+      content: typeof candidate.content === 'string' ? candidate.content : ''
+    };
+  }
+
+  return { type: 'none' };
+}
+
+function normalizeRequestFile(requestFile: unknown): RequestFile {
+  const source =
+    requestFile && typeof requestFile === 'object'
+      ? (requestFile as Partial<RequestFile>)
+      : {};
+
   return {
-    ...requestFile,
     version: 1,
-    attachments: normalizeAttachments(requestFile.attachments)
+    name: typeof source.name === 'string' ? source.name : DEFAULT_REQUEST_NAME,
+    method: normalizeMethod(source.method),
+    url: typeof source.url === 'string' ? source.url : '',
+    queryParams: normalizeEntries(source.queryParams),
+    headers: normalizeEntries(source.headers),
+    auth: normalizeAuth(source.auth),
+    body: normalizeBody(source.body),
+    requestOptions: {
+      followRedirects:
+        typeof source.requestOptions?.followRedirects === 'boolean'
+          ? source.requestOptions.followRedirects
+          : true
+    },
+    attachments: normalizeAttachments(source.attachments)
   };
 }
 
@@ -212,7 +320,7 @@ export function getResponseFilePath(requestPath: string): string {
 
 export async function readRequestFile(filePath: string): Promise<RequestFile> {
   const content = await readFile(filePath, 'utf8');
-  const parsed = JSON.parse(content) as RequestFile;
+  const parsed = JSON.parse(content) as unknown;
 
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Request file is invalid.');

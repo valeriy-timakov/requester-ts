@@ -1,6 +1,11 @@
 import { HTTP_METHODS } from '@/entities/request/model/requestFile';
 import type { RequestAttachment, RequestFile } from '@/shared/types/requester';
+import { AuthEditor } from './AuthEditor';
 import { AttachmentsPanel } from './AttachmentsPanel';
+import { BodyEditor } from './BodyEditor';
+import { HeadersEditor } from './HeadersEditor';
+import { QueryParamsEditor } from './QueryParamsEditor';
+import { RequestOptionsEditor } from './RequestOptionsEditor';
 
 interface RequestEditorProps {
   request: RequestFile | null;
@@ -112,6 +117,56 @@ export function RequestEditor({
           }
         />
       </label>
+
+      <QueryParamsEditor
+        queryParams={request.queryParams}
+        onChange={(queryParams) =>
+          onChange((draft) => ({
+            ...draft,
+            queryParams
+          }))
+        }
+      />
+
+      <HeadersEditor
+        headers={request.headers}
+        onChange={(headers) =>
+          onChange((draft) => ({
+            ...draft,
+            headers
+          }))
+        }
+      />
+
+      <AuthEditor
+        auth={request.auth}
+        onChange={(auth) =>
+          onChange((draft) => ({
+            ...draft,
+            auth
+          }))
+        }
+      />
+
+      <BodyEditor
+        body={request.body}
+        onChange={(body) =>
+          onChange((draft) => ({
+            ...draft,
+            body
+          }))
+        }
+      />
+
+      <RequestOptionsEditor
+        requestOptions={request.requestOptions}
+        onChange={(requestOptions) =>
+          onChange((draft) => ({
+            ...draft,
+            requestOptions
+          }))
+        }
+      />
 
       <AttachmentsPanel
         attachments={request.attachments ?? []}
