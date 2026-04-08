@@ -37,6 +37,7 @@ const RESERVED_FILE_NAMES = new Set([
 ]);
 
 export const DEFAULT_REQUEST_NAME = 'New Request';
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 const HTTP_METHODS: HttpMethod[] = [
   'GET',
   'POST',
@@ -57,7 +58,7 @@ export function createDefaultRequest(name = DEFAULT_REQUEST_NAME): RequestFile {
     headers: [],
     auth: { type: 'none' },
     body: { type: 'none' },
-    requestOptions: { followRedirects: true },
+    requestOptions: { followRedirects: true, timeoutMs: DEFAULT_REQUEST_TIMEOUT_MS },
     attachments: []
   };
 }
@@ -173,7 +174,10 @@ function normalizeEntries(entries: unknown): KeyValueEntry[] {
       const candidate = entry as Partial<KeyValueEntry>;
       return {
         key: typeof candidate.key === 'string' ? candidate.key : '',
-        value: typeof candidate.value === 'string' ? candidate.value : ''
+        value: typeof candidate.value === 'string' ? candidate.value : '',
+        ...(typeof candidate.enabled === 'boolean'
+          ? { enabled: candidate.enabled }
+          : {})
       };
     })
     .filter((entry): entry is KeyValueEntry => entry !== null);
@@ -243,7 +247,13 @@ function normalizeRequestFile(requestFile: unknown): RequestFile {
       followRedirects:
         typeof source.requestOptions?.followRedirects === 'boolean'
           ? source.requestOptions.followRedirects
-          : true
+          : true,
+      timeoutMs:
+        typeof source.requestOptions?.timeoutMs === 'number' &&
+        Number.isFinite(source.requestOptions.timeoutMs) &&
+        source.requestOptions.timeoutMs > 0
+          ? source.requestOptions.timeoutMs
+          : DEFAULT_REQUEST_TIMEOUT_MS
     },
     attachments: normalizeAttachments(source.attachments)
   };

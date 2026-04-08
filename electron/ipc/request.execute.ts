@@ -23,20 +23,28 @@ function isPathInsideRoot(rootPath: string, candidatePath: string): boolean {
 
 export function registerRequestExecutionHandlers(): void {
   ipcMain.handle('request:execute', async (_event, relativePath: string) => {
-    const rootFolder = await getCurrentRootFolder();
-    const requestPath = path.resolve(rootFolder, relativePath);
+    try {
+      const rootFolder = await getCurrentRootFolder();
+      const requestPath = path.resolve(rootFolder, relativePath);
 
-    if (!isPathInsideRoot(rootFolder, requestPath)) {
-      throw new Error('Request path must be inside the current root folder.');
+      if (!isPathInsideRoot(rootFolder, requestPath)) {
+        throw new Error('Request path must be inside the current root folder.');
+      }
+
+      if (path.extname(requestPath).toLowerCase() !== '.req') {
+        throw new Error('Only .req files can be executed.');
+      }
+
+      const request = await readRequestFile(requestPath);
+      const response = await executeRequest(request);
+      await saveResponseFile(requestPath, response);
+      return response;
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message
+          ? error.message
+          : 'Request execution failed.';
+      throw new Error(message.split('\n')[0] ?? 'Request execution failed.');
     }
-
-    if (path.extname(requestPath).toLowerCase() !== '.req') {
-      throw new Error('Only .req files can be executed.');
-    }
-
-    const request = await readRequestFile(requestPath);
-    const response = await executeRequest(request);
-    await saveResponseFile(requestPath, response);
-    return response;
   });
 }

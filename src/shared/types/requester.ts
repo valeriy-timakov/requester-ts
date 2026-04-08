@@ -87,6 +87,7 @@ export type RequestBody =
 
 export interface RequestOptions {
   followRedirects: boolean;
+  timeoutMs?: number;
 }
 
 export interface RequestAttachment {

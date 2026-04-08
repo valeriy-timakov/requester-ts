@@ -5,16 +5,30 @@ import type {
 } from '../../src/shared/types/requester';
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const MAX_RESPONSE_BODY_BYTES = 5 * 1024 * 1024;
 
 function isEnabled(entry: KeyValueEntry): boolean {
   return entry.enabled !== false;
 }
 
+function normalizeTimeoutMs(timeoutMs: unknown): number {
+  if (typeof timeoutMs !== 'number' || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    return REQUEST_TIMEOUT_MS;
+  }
+
+  return timeoutMs;
+}
+
 function buildRequestUrl(request: RequestFile): string {
+  const baseUrl = request.url.trim();
+  if (!baseUrl) {
+    throw new Error('URL is required.');
+  }
+
   let url: URL;
 
   try {
-    url = new URL(request.url);
+    url = new URL(baseUrl);
   } catch {
     throw new Error('Invalid URL.');
   }
@@ -41,7 +55,8 @@ function buildRequestHeaders(request: RequestFile): Headers {
     headers.set(header.key, header.value);
   }
 
-  if (request.auth.type === 'bearer' && request.auth.token.trim()) {
+  // Auth settings have explicit precedence and overwrite manual Authorization.
+  if (request.auth.type === 'bearer') {
     headers.set('authorization', `Bearer ${request.auth.token}`);
   }
 
@@ -52,10 +67,24 @@ function buildRequestHeaders(request: RequestFile): Headers {
     headers.set('authorization', `Basic ${encodedCredentials}`);
   }
 
+  if (!headers.has('content-type')) {
+    if (request.body.type === 'json') {
+      headers.set('content-type', 'application/json');
+    } else if (request.body.type === 'xml') {
+      headers.set('content-type', 'application/xml');
+    } else if (request.body.type === 'text') {
+      headers.set('content-type', 'text/plain');
+    }
+  }
+
   return headers;
 }
 
 function buildRequestBody(request: RequestFile): BodyInit | undefined {
+  if (request.method === 'GET' || request.method === 'HEAD') {
+    return undefined;
+  }
+
   if (request.body.type === 'none') {
     return undefined;
   }
@@ -71,12 +100,58 @@ function buildRequestBody(request: RequestFile): BodyInit | undefined {
   throw new Error('Only "none" and raw text request bodies are supported.');
 }
 
+async function readResponseBody(response: Response): Promise<string> {
+  if (!response.body) {
+    return '';
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  const chunks: string[] = [];
+  let totalBytes = 0;
+  let truncated = false;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_RESPONSE_BODY_BYTES) {
+        const allowedBytes = value.byteLength - (totalBytes - MAX_RESPONSE_BODY_BYTES);
+        if (allowedBytes > 0) {
+          chunks.push(decoder.decode(value.subarray(0, allowedBytes), { stream: true }));
+        }
+        truncated = true;
+        await reader.cancel();
+        break;
+      }
+
+      chunks.push(decoder.decode(value, { stream: true }));
+    }
+  } catch {
+    return '[Response body could not be read]';
+  }
+
+  chunks.push(decoder.decode());
+  if (truncated) {
+    chunks.push(
+      `\n\n[Response body truncated at ${MAX_RESPONSE_BODY_BYTES} bytes to avoid UI instability.]`
+    );
+  }
+
+  return chunks.join('');
+}
+
 export async function executeRequest(
   request: RequestFile
 ): Promise<RequestExecutionResponse> {
   const startAt = Date.now();
+  const timeoutMs = normalizeTimeoutMs(request.requestOptions.timeoutMs);
   const abortController = new AbortController();
-  const timeoutId = setTimeout(() => abortController.abort(), REQUEST_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => abortController.abort(), timeoutMs);
 
   try {
     const response = await fetch(buildRequestUrl(request), {
@@ -96,12 +171,12 @@ export async function executeRequest(
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
-      body: await response.text(),
+      body: await readResponseBody(response),
       durationMs: Date.now() - startAt
     };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms.`);
+      throw new Error(`Request timed out after ${timeoutMs}ms.`);
     }
 
     throw new Error(
