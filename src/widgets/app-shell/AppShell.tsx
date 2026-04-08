@@ -6,7 +6,13 @@ import {
   updateTabDraft,
   type RequestTabState
 } from '@/features/request-tabs/model/tabState';
-import type { AppState, OpenTab, TreeEntry } from '@/shared/types/requester';
+import type {
+  AppState,
+  OpenTab,
+  RequestAttachment,
+  RequestDocument,
+  TreeEntry
+} from '@/shared/types/requester';
 import {
   DialogModal,
   type DialogModalState
@@ -350,6 +356,60 @@ export function AppShell() {
     );
   }
 
+  function replaceActiveTabWithSavedDocument(document: RequestDocument) {
+    setOpenTabs((currentTabs) =>
+      currentTabs.map((tab) =>
+        tab.path === document.path ? markTabSaved(tab, document.path, document.data) : tab
+      )
+    );
+    setActiveTabPath(document.path);
+  }
+
+  async function handleAddAttachment() {
+    if (!activeTabPath) {
+      return;
+    }
+
+    try {
+      const updatedDocument = await window.requesterApi.addAttachment(
+        getRootRelativePath(activeTabPath)
+      );
+      if (!updatedDocument) {
+        return;
+      }
+
+      replaceActiveTabWithSavedDocument(updatedDocument);
+      setError(null);
+    } catch (attachmentError) {
+      setError(
+        attachmentError instanceof Error
+          ? attachmentError.message
+          : 'Failed to add attachment.'
+      );
+    }
+  }
+
+  async function handleRemoveAttachment(attachment: RequestAttachment) {
+    if (!activeTabPath) {
+      return;
+    }
+
+    try {
+      const updatedDocument = await window.requesterApi.removeAttachment(
+        getRootRelativePath(activeTabPath),
+        attachment.relativePath
+      );
+      replaceActiveTabWithSavedDocument(updatedDocument);
+      setError(null);
+    } catch (attachmentError) {
+      setError(
+        attachmentError instanceof Error
+          ? attachmentError.message
+          : 'Failed to remove attachment.'
+      );
+    }
+  }
+
   async function handleSaveTab(pathToSave = activeTabPath): Promise<string | null> {
     if (!pathToSave) {
       return null;
@@ -542,6 +602,12 @@ export function AppShell() {
                 void handleSendActiveTab();
               }}
               onChange={handleUpdateActiveRequest}
+              onAddAttachment={() => {
+                void handleAddAttachment();
+              }}
+              onRemoveAttachment={(attachment) => {
+                void handleRemoveAttachment(attachment);
+              }}
             />
             <ResponseViewer
               response={activeTab?.lastResponse ?? null}

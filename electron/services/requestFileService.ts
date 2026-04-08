@@ -6,7 +6,7 @@ import type {
   RequestFile
 } from '../../src/shared/types/requester';
 
-const INVALID_FILE_NAME_PATTERN = /[<>:"/\\|?*\u0000-\u001F]/;
+const INVALID_FILE_NAME_PATTERN = /[<>:"/\\|?*]/;
 const RESERVED_FILE_NAMES = new Set([
   'CON',
   'PRN',
@@ -137,7 +137,6 @@ function normalizeRequestFile(requestFile: RequestFile): RequestFile {
   return {
     ...requestFile,
     version: 1,
-    name: validateEntryName(requestFile.name),
     attachments: normalizeAttachments(requestFile.attachments)
   };
 }
@@ -181,7 +180,10 @@ export function validateEntryName(name: string): string {
     throw new Error('Name is not valid.');
   }
 
-  if (INVALID_FILE_NAME_PATTERN.test(normalizedName)) {
+  const hasControlChars = [...normalizedName].some(
+    (char) => char.charCodeAt(0) <= 31
+  );
+  if (INVALID_FILE_NAME_PATTERN.test(normalizedName) || hasControlChars) {
     throw new Error('Name contains invalid filename characters.');
   }
 
@@ -223,7 +225,10 @@ export async function saveRequestFile(
   filePath: string,
   requestFile: RequestFile
 ): Promise<void> {
-  const normalizedRequest = normalizeRequestFile(requestFile);
+  const normalizedRequest = {
+    ...normalizeRequestFile(requestFile),
+    name: validateEntryName(requestFile.name)
+  } satisfies RequestFile;
 
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, JSON.stringify(normalizedRequest, null, 2), 'utf8');
@@ -276,9 +281,16 @@ export async function removeAttachmentFromRequestFile(
   const normalizedTargetRelativePath = `./${attachmentFileName}`;
 
   const filteredAttachments = (request.attachments ?? []).filter(
-    (attachment) =>
-      normalizeAttachmentRelativePath(attachment.relativePath) !==
-      attachmentFileName
+    (attachment) => {
+      try {
+        return (
+          normalizeAttachmentRelativePath(attachment.relativePath) !==
+          attachmentFileName
+        );
+      } catch {
+        return true;
+      }
+    }
   );
   const nextRequest: RequestFile = {
     ...request,
