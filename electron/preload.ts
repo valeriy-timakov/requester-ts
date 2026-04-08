@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { RequesterApi } from '../src/shared/api/requester';
+import type { MenuAction, RequesterApi } from '../src/shared/api/requester';
 
 const requesterApi: RequesterApi = {
   getAppState: () => ipcRenderer.invoke('app-state:getAppState'),
@@ -29,7 +29,18 @@ const requesterApi: RequesterApi = {
       requestPath,
       attachmentRelativePath
     ),
-  executeRequest: (path) => ipcRenderer.invoke('request:execute', path)
+  executeRequest: (path) => ipcRenderer.invoke('request:execute', path),
+  setHasDirtyTabs: (hasDirtyTabs) =>
+    ipcRenderer.invoke('app-state:setHasDirtyTabs', hasDirtyTabs),
+  onMenuAction: (listener) => {
+    const handler = (_event: Electron.IpcRendererEvent, action: MenuAction) => {
+      listener(action);
+    };
+    ipcRenderer.on('menu:action', handler);
+    return () => {
+      ipcRenderer.removeListener('menu:action', handler);
+    };
+  }
 };
 
 contextBridge.exposeInMainWorld('requesterApi', requesterApi);

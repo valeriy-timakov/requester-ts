@@ -143,6 +143,14 @@
   line-height: 1.6;
 }
 
+.workspace-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 100%;
+  padding: 12px 4px;
+}
+
 .tree-list {
   list-style: none;
   margin: 0;

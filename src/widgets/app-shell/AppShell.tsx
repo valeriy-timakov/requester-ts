@@ -27,6 +27,23 @@ const initialAppState: AppState = {
   currentRootFolder: ''
 };
 
+type DirtyCloseChoice = 'save' | 'discard' | 'cancel';
+
+function toUiErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error) || !error.message) {
+    return fallback;
+  }
+
+  const singleLineMessage = error.message.split('\n')[0]?.trim();
+  if (!singleLineMessage) {
+    return fallback;
+  }
+
+  return singleLineMessage.length > 220
+    ? `${singleLineMessage.slice(0, 217)}...`
+    : singleLineMessage;
+}
+
 export function AppShell() {
   const [appState, setAppState] = useState<AppState>(initialAppState);
   const [treeEntries, setTreeEntries] = useState<TreeEntry[]>([]);
@@ -48,6 +65,23 @@ export function AppShell() {
   );
 
   const activeTab = openTabs.find((tab) => tab.path === activeTabPath) ?? null;
+  const hasDirtyTabs = openTabs.some((tab) => tab.isDirty);
+
+  function setActionError(fallback: string, errorValue: unknown): void {
+    console.error(errorValue);
+    setError(toUiErrorMessage(errorValue, fallback));
+  }
+
+  function isMatchingOrNestedPath(
+    candidatePath: string,
+    targetPath: string
+  ): boolean {
+    return (
+      candidatePath === targetPath ||
+      candidatePath.startsWith(`${targetPath}\\`) ||
+      candidatePath.startsWith(`${targetPath}/`)
+    );
+  }
 
   function getRootRelativePath(absolutePath: string): string {
     const normalizedRoot = appState.currentRootFolder.replace(/\\/g, '/');
@@ -77,11 +111,7 @@ export function AppShell() {
       setAppState(state);
       await loadTree();
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Failed to load application state.'
-      );
+      setActionError('Failed to load application state.', loadError);
       setTreeEntries([]);
     } finally {
       setIsLoading(false);
@@ -90,38 +120,15 @@ export function AppShell() {
 
   useEffect(() => {
     void loadInitialState();
+    // Initial load should only run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function isMatchingOrNestedPath(
-    candidatePath: string,
-    targetPath: string
-  ): boolean {
-    return (
-      candidatePath === targetPath ||
-      candidatePath.startsWith(`${targetPath}\\`) ||
-      candidatePath.startsWith(`${targetPath}/`)
-    );
-  }
-
   useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        void handleSaveActiveTab();
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [activeTabPath, openTabs]);
-
-  function getRelatedTabs(entryPath: string): RequestTabState[] {
-    return openTabs.filter((tab) =>
-      isMatchingOrNestedPath(tab.path, entryPath)
-    );
-  }
+    void window.requesterApi.setHasDirtyTabs(hasDirtyTabs).catch((syncError) => {
+      console.error(syncError);
+    });
+  }, [hasDirtyTabs]);
 
   function requestPrompt(
     title: string,
@@ -181,6 +188,113 @@ export function AppShell() {
     });
   }
 
+  function requestDirtyTabCloseConfirmation(title: string): Promise<DirtyCloseChoice> {
+    return new Promise((resolve) => {
+      setDialogState({
+        kind: 'dirty-close',
+        title: 'Unsaved Changes',
+        message: `Save changes to ${title} before closing?`,
+        onCancel: () => {
+          setDialogState(null);
+          resolve('cancel');
+        },
+        onDiscard: () => {
+          setDialogState(null);
+          resolve('discard');
+        },
+        onSave: () => {
+          setDialogState(null);
+          resolve('save');
+        }
+      });
+    });
+  }
+
+  function getRelatedTabs(entryPath: string): RequestTabState[] {
+    return openTabs.filter((tab) => isMatchingOrNestedPath(tab.path, entryPath));
+  }
+
+  function getActiveFallbackPath(
+    tabsBefore: RequestTabState[],
+    tabsAfter: RequestTabState[]
+  ): string | null {
+    if (!activeTabPath) {
+      return null;
+    }
+
+    const activeIndex = tabsBefore.findIndex((tab) => tab.path === activeTabPath);
+    if (activeIndex === -1) {
+      return tabsAfter[0]?.path ?? null;
+    }
+
+    for (let index = activeIndex - 1; index >= 0; index -= 1) {
+      const candidatePath = tabsBefore[index]?.path;
+      if (candidatePath && tabsAfter.some((tab) => tab.path === candidatePath)) {
+        return candidatePath;
+      }
+    }
+
+    for (let index = activeIndex + 1; index < tabsBefore.length; index += 1) {
+      const candidatePath = tabsBefore[index]?.path;
+      if (candidatePath && tabsAfter.some((tab) => tab.path === candidatePath)) {
+        return candidatePath;
+      }
+    }
+
+    return tabsAfter[0]?.path ?? null;
+  }
+
+  function closeTabByPath(pathToClose: string): void {
+    setOpenTabs((currentTabs) => {
+      const closedIndex = currentTabs.findIndex((tab) => tab.path === pathToClose);
+      if (closedIndex === -1) {
+        return currentTabs;
+      }
+
+      const nextTabs = currentTabs.filter((tab) => tab.path !== pathToClose);
+      setActiveTabPath((currentActivePath) => {
+        if (currentActivePath !== pathToClose) {
+          return currentActivePath;
+        }
+
+        const fallbackTab =
+          nextTabs[Math.max(0, closedIndex - 1)] ?? nextTabs[0] ?? null;
+        return fallbackTab?.path ?? null;
+      });
+
+      return nextTabs;
+    });
+  }
+
+  function replaceActiveTabWithSavedDocument(document: RequestDocument) {
+    setOpenTabs((currentTabs) =>
+      currentTabs.map((tab) =>
+        tab.path === document.path
+          ? markTabSaved(tab, document.path, document.data)
+          : tab
+      )
+    );
+    setActiveTabPath(document.path);
+  }
+
+  async function handleOpenRootFolder() {
+    try {
+      const currentRoot = appState.currentRootFolder;
+      const nextAppState = await window.requesterApi.openRootFolderDialog();
+
+      setAppState(nextAppState);
+      if (nextAppState.currentRootFolder !== currentRoot) {
+        setOpenTabs([]);
+        setActiveTabPath(null);
+      }
+
+      await loadTree();
+      setError(null);
+    } catch (folderError) {
+      setActionError('Failed to open folder.', folderError);
+    }
+  }
+
   async function handleCreateFolder(parentPath: string) {
     const name = await requestPrompt('Create Folder', 'New Folder', 'Create');
     if (!name) {
@@ -190,12 +304,9 @@ export function AppShell() {
     try {
       await window.requesterApi.createFolder(parentPath, name);
       await loadTree();
+      setError(null);
     } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : 'Failed to create folder.'
-      );
+      setActionError('Failed to create folder.', mutationError);
     }
   }
 
@@ -206,18 +317,11 @@ export function AppShell() {
     }
 
     try {
-      const requestPath = await window.requesterApi.createRequest(
-        parentPath,
-        name
-      );
+      const requestPath = await window.requesterApi.createRequest(parentPath, name);
       await loadTree();
       await handleOpenRequest(requestPath);
     } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : 'Failed to create request.'
-      );
+      setActionError('Failed to create request.', mutationError);
     }
   }
 
@@ -232,10 +336,8 @@ export function AppShell() {
     }
 
     try {
-      const nextPath = await window.requesterApi.renameEntry(
-        entry.path,
-        nextName
-      );
+      const nextPath = await window.requesterApi.renameEntry(entry.path, nextName);
+
       setOpenTabs((currentTabs) =>
         currentTabs.map((tab) => {
           if (tab.path === entry.path && entry.type === 'request') {
@@ -248,73 +350,72 @@ export function AppShell() {
             };
           }
 
-          if (
-            entry.type === 'folder' &&
-            isMatchingOrNestedPath(tab.path, entry.path)
-          ) {
-            return { ...tab, path: tab.path.replace(entry.path, nextPath) };
+          if (entry.type === 'folder' && isMatchingOrNestedPath(tab.path, entry.path)) {
+            return {
+              ...tab,
+              path: tab.path.replace(entry.path, nextPath)
+            };
           }
 
           return tab;
         })
       );
+
       setActiveTabPath((currentPath) => {
         if (!currentPath) {
           return currentPath;
         }
 
-        if (currentPath === entry.path && entry.type === 'request') {
+        if (entry.type === 'request' && currentPath === entry.path) {
           return nextPath;
         }
 
-        if (
-          entry.type === 'folder' &&
-          isMatchingOrNestedPath(currentPath, entry.path)
-        ) {
+        if (entry.type === 'folder' && isMatchingOrNestedPath(currentPath, entry.path)) {
           return currentPath.replace(entry.path, nextPath);
         }
 
         return currentPath;
       });
+
       await loadTree();
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : 'Failed to rename entry.'
-      );
+      setError(null);
+    } catch (renameError) {
+      setActionError('Failed to rename item.', renameError);
     }
   }
 
   async function handleDeleteEntry(entry: TreeEntry) {
     const affectedTabs = getRelatedTabs(entry.path);
-    const hasDirtyTabs = affectedTabs.some((tab) => tab.isDirty);
-    const confirmMessage = hasDirtyTabs
-      ? `Delete ${entry.name}? Unsaved changes in open tabs will be lost.`
-      : `Delete ${entry.name}? This cannot be undone.`;
+    const hasAffectedDirtyTabs = affectedTabs.some((tab) => tab.isDirty);
 
-    if (!(await requestConfirmation(confirmMessage, 'Delete'))) {
-      return;
+    if (hasAffectedDirtyTabs) {
+      const confirmed = await requestConfirmation(
+        'Some affected requests have unsaved changes. Delete anyway?',
+        'Delete'
+      );
+      if (!confirmed) {
+        return;
+      }
     }
 
     try {
       await window.requesterApi.deleteEntry(entry.path);
+
       const nextTabs = openTabs.filter(
         (tab) => !isMatchingOrNestedPath(tab.path, entry.path)
       );
+      const isActiveTabDeleted =
+        activeTabPath !== null && isMatchingOrNestedPath(activeTabPath, entry.path);
+
       setOpenTabs(nextTabs);
-      setActiveTabPath((currentPath) =>
-        currentPath && isMatchingOrNestedPath(currentPath, entry.path)
-          ? (nextTabs[nextTabs.length - 1]?.path ?? null)
-          : currentPath
-      );
+      if (isActiveTabDeleted) {
+        setActiveTabPath(getActiveFallbackPath(openTabs, nextTabs));
+      }
+
       await loadTree();
-    } catch (mutationError) {
-      setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : 'Failed to delete entry.'
-      );
+      setError(null);
+    } catch (deleteError) {
+      setActionError('Failed to delete item.', deleteError);
     }
   }
 
@@ -326,19 +427,14 @@ export function AppShell() {
     }
 
     try {
-      const requestDocument =
-        await window.requesterApi.readRequest(requestPath);
+      const requestDocument = await window.requesterApi.readRequest(requestPath);
       const nextTab = createTabState(requestDocument);
 
       setOpenTabs((currentTabs) => [...currentTabs, nextTab]);
       setActiveTabPath(requestPath);
       setError(null);
     } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : 'Failed to open request.'
-      );
+      setActionError('Failed to open request.', loadError);
     }
   }
 
@@ -354,15 +450,6 @@ export function AppShell() {
         tab.path === activeTabPath ? updateTabDraft(tab, updater) : tab
       )
     );
-  }
-
-  function replaceActiveTabWithSavedDocument(document: RequestDocument) {
-    setOpenTabs((currentTabs) =>
-      currentTabs.map((tab) =>
-        tab.path === document.path ? markTabSaved(tab, document.path, document.data) : tab
-      )
-    );
-    setActiveTabPath(document.path);
   }
 
   async function handleAddAttachment() {
@@ -381,11 +468,7 @@ export function AppShell() {
       replaceActiveTabWithSavedDocument(updatedDocument);
       setError(null);
     } catch (attachmentError) {
-      setError(
-        attachmentError instanceof Error
-          ? attachmentError.message
-          : 'Failed to add attachment.'
-      );
+      setActionError('Failed to add attachment.', attachmentError);
     }
   }
 
@@ -402,15 +485,11 @@ export function AppShell() {
       replaceActiveTabWithSavedDocument(updatedDocument);
       setError(null);
     } catch (attachmentError) {
-      setError(
-        attachmentError instanceof Error
-          ? attachmentError.message
-          : 'Failed to remove attachment.'
-      );
+      setActionError('Failed to remove attachment.', attachmentError);
     }
   }
 
-  async function handleSaveTab(pathToSave = activeTabPath): Promise<string | null> {
+  async function handleSaveTab(pathToSave: string | null): Promise<string | null> {
     if (!pathToSave) {
       return null;
     }
@@ -425,13 +504,11 @@ export function AppShell() {
       const nextRequest = cloneRequestFile(tab.draft);
 
       if (nextRequest.name.trim() !== tab.lastSaved.name.trim()) {
-        nextPath = await window.requesterApi.renameEntry(
-          tab.path,
-          nextRequest.name
-        );
+        nextPath = await window.requesterApi.renameEntry(tab.path, nextRequest.name);
       }
 
       await window.requesterApi.saveRequest(nextPath, nextRequest);
+
       setOpenTabs((currentTabs) =>
         currentTabs.map((currentTab) =>
           currentTab.path === tab.path
@@ -439,25 +516,24 @@ export function AppShell() {
             : currentTab
         )
       );
-      setActiveTabPath(nextPath);
+      setActiveTabPath((currentPath) =>
+        currentPath === tab.path ? nextPath : currentPath
+      );
+
       await loadTree();
       setError(null);
       return nextPath;
     } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : 'Failed to save request.'
-      );
+      setActionError('Failed to save request.', saveError);
       return null;
     }
   }
 
-  async function handleSaveActiveTab() {
+  async function handleSaveActiveTab(): Promise<void> {
     await handleSaveTab(activeTabPath);
   }
 
-  async function handleSendActiveTab() {
+  async function handleSendActiveTab(): Promise<void> {
     if (!activeTabPath) {
       return;
     }
@@ -499,51 +575,91 @@ export function AppShell() {
       );
       setError(null);
     } catch (sendError) {
+      const responseError = toUiErrorMessage(
+        sendError,
+        'Failed to execute request.'
+      );
+
       setOpenTabs((currentTabs) =>
         currentTabs.map((currentTab) =>
           currentTab.path === savedPath
             ? {
                 ...currentTab,
                 isSending: false,
-                responseError:
-                  sendError instanceof Error
-                    ? sendError.message
-                    : 'Failed to execute request.'
+                responseError
               }
             : currentTab
         )
       );
+      console.error(sendError);
     }
   }
 
-  async function handleCloseTab(pathToClose: string) {
+  async function handleCloseTab(pathToClose: string): Promise<boolean> {
     const tab = openTabs.find((item) => item.path === pathToClose);
     if (!tab) {
-      return;
+      return false;
     }
 
-    if (
-      tab.isDirty &&
-      !(await requestConfirmation(
-        `Close ${tab.title} without saving?`,
-        'Close Tab'
-      ))
-    ) {
-      return;
+    let resolvedPathToClose = pathToClose;
+
+    if (tab.isDirty) {
+      const decision = await requestDirtyTabCloseConfirmation(tab.title);
+
+      if (decision === 'cancel') {
+        return false;
+      }
+
+      if (decision === 'save') {
+        const savedPath = await handleSaveTab(pathToClose);
+        if (!savedPath) {
+          return false;
+        }
+
+        resolvedPathToClose = savedPath;
+      }
     }
 
-    const nextTabs = openTabs.filter((item) => item.path !== pathToClose);
-    setOpenTabs(nextTabs);
-
-    if (activeTabPath === pathToClose) {
-      const closedIndex = openTabs.findIndex(
-        (item) => item.path === pathToClose
-      );
-      const fallbackTab =
-        nextTabs[Math.max(0, closedIndex - 1)] ?? nextTabs[0] ?? null;
-      setActiveTabPath(fallbackTab?.path ?? null);
-    }
+    closeTabByPath(resolvedPathToClose);
+    return true;
   }
+
+  async function handleCloseActiveTab(): Promise<void> {
+    if (!activeTabPath) {
+      return;
+    }
+
+    await handleCloseTab(activeTabPath);
+  }
+
+  useEffect(() => {
+    const unsubscribe = window.requesterApi.onMenuAction((action) => {
+      switch (action) {
+        case 'open-folder': {
+          void handleOpenRootFolder();
+          break;
+        }
+        case 'save-active-tab': {
+          void handleSaveActiveTab();
+          break;
+        }
+        case 'send-active-tab': {
+          void handleSendActiveTab();
+          break;
+        }
+        case 'close-active-tab': {
+          void handleCloseActiveTab();
+          break;
+        }
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+    // Menu actions should stay wired once and use latest render closures.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTabPath, appState.currentRootFolder, openTabs]);
 
   return (
     <>
@@ -552,14 +668,10 @@ export function AppShell() {
           <div className="sidebar__header">
             <div>
               <div className="eyebrow">Root Folder</div>
-              <div
-                className="root-folder-path"
-                title={appState.currentRootFolder}
-              >
+              <div className="root-folder-path" title={appState.currentRootFolder}>
                 {appState.currentRootFolder || 'Loading...'}
               </div>
             </div>
-            {error ? <div className="inline-error">{error}</div> : null}
           </div>
 
           <div className="sidebar__body">
@@ -586,34 +698,49 @@ export function AppShell() {
               tabs={visibleTabs}
               activePath={activeTabPath}
               onSelect={setActiveTabPath}
-              onClose={handleCloseTab}
+              onClose={(path) => {
+                void handleCloseTab(path);
+              }}
             />
           </section>
 
           <section className="workspace__content">
-            <RequestEditor
-              request={activeTab?.draft ?? null}
-              canSave={Boolean(activeTab?.isDirty)}
-              isSending={Boolean(activeTab?.isSending)}
-              onSave={() => {
-                void handleSaveActiveTab();
-              }}
-              onSend={() => {
-                void handleSendActiveTab();
-              }}
-              onChange={handleUpdateActiveRequest}
-              onAddAttachment={() => {
-                void handleAddAttachment();
-              }}
-              onRemoveAttachment={(attachment) => {
-                void handleRemoveAttachment(attachment);
-              }}
-            />
-            <ResponseViewer
-              response={activeTab?.lastResponse ?? null}
-              isLoading={Boolean(activeTab?.isSending)}
-              error={activeTab?.responseError ?? null}
-            />
+            {error ? <div className="inline-error">{error}</div> : null}
+
+            {activeTab ? (
+              <>
+                <RequestEditor
+                  request={activeTab.draft}
+                  canSave={activeTab.isDirty}
+                  isSending={activeTab.isSending}
+                  onSave={() => {
+                    void handleSaveActiveTab();
+                  }}
+                  onSend={() => {
+                    void handleSendActiveTab();
+                  }}
+                  onChange={handleUpdateActiveRequest}
+                  onAddAttachment={() => {
+                    void handleAddAttachment();
+                  }}
+                  onRemoveAttachment={(attachment) => {
+                    void handleRemoveAttachment(attachment);
+                  }}
+                />
+                <ResponseViewer
+                  response={activeTab.lastResponse}
+                  isLoading={activeTab.isSending}
+                  error={activeTab.responseError}
+                />
+              </>
+            ) : (
+              <div className="workspace-empty">
+                <div className="workspace__label">No Request Selected</div>
+                <div className="workspace__placeholder">
+                  Open a request from the tree to edit, save, and send it.
+                </div>
+              </div>
+            )}
           </section>
         </main>
       </div>

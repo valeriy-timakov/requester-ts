@@ -6,6 +6,12 @@ import type {
   TreeEntry
 } from '../types/requester';
 
+export type MenuAction =
+  | 'open-folder'
+  | 'save-active-tab'
+  | 'send-active-tab'
+  | 'close-active-tab';
+
 export interface RequesterApi {
   getAppState: () => Promise<AppState>;
   getCurrentRootFolder: () => Promise<string>;
@@ -24,4 +30,6 @@ export interface RequesterApi {
     attachmentRelativePath: string
   ) => Promise<RequestDocument>;
   executeRequest: (path: string) => Promise<RequestExecutionResponse>;
+  setHasDirtyTabs: (hasDirtyTabs: boolean) => Promise<void>;
+  onMenuAction: (listener: (action: MenuAction) => void) => () => void;
 }

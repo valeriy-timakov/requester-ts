@@ -17,7 +17,19 @@ interface ConfirmDialogState {
   onCancel: () => void;
 }
 
-export type DialogModalState = PromptDialogState | ConfirmDialogState;
+interface DirtyCloseDialogState {
+  kind: 'dirty-close';
+  title: string;
+  message: string;
+  onSave: () => void;
+  onDiscard: () => void;
+  onCancel: () => void;
+}
+
+export type DialogModalState =
+  | PromptDialogState
+  | ConfirmDialogState
+  | DirtyCloseDialogState;
 
 interface DialogModalProps {
   dialog: DialogModalState | null;
@@ -54,26 +66,63 @@ export function DialogModal({ dialog }: DialogModalProps) {
               }
             }}
           />
-        ) : (
+        ) : dialog.kind === 'confirm' ? (
           <div className="dialog-card__message">{dialog.message}</div>
+        ) : (
+          <div
+            className="dialog-card__message"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') {
+                dialog.onCancel();
+              }
+            }}
+          >
+            {dialog.message}
+          </div>
         )}
 
-        <div className="dialog-card__actions">
-          <button
-            className="action-button"
-            onClick={dialog.onCancel}
-            type="button"
-          >
-            Cancel
-          </button>
-          <button
-            className="action-button action-button--primary"
-            onClick={dialog.onConfirm}
-            type="button"
-          >
-            {dialog.confirmLabel}
-          </button>
-        </div>
+        {dialog.kind === 'dirty-close' ? (
+          <div className="dialog-card__actions">
+            <button
+              className="action-button"
+              onClick={dialog.onCancel}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="action-button"
+              onClick={dialog.onDiscard}
+              type="button"
+            >
+              Discard
+            </button>
+            <button
+              className="action-button action-button--primary"
+              onClick={dialog.onSave}
+              type="button"
+            >
+              Save
+            </button>
+          </div>
+        ) : (
+          <div className="dialog-card__actions">
+            <button
+              className="action-button"
+              onClick={dialog.onCancel}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="action-button action-button--primary"
+              onClick={dialog.onConfirm}
+              type="button"
+            >
+              {dialog.confirmLabel}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
