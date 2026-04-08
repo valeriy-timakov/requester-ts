@@ -167,12 +167,17 @@ export async function executeRequest(
       responseHeaders[key] = value;
     }
 
+    const body = await readResponseBody(response);
+    const contentType = response.headers.get('content-type') ?? undefined;
+
     return {
       status: response.status,
       statusText: response.statusText,
       headers: responseHeaders,
-      body: await readResponseBody(response),
-      durationMs: Date.now() - startAt
+      body,
+      durationMs: Date.now() - startAt,
+      contentType,
+      bodySizeBytes: new TextEncoder().encode(body).byteLength
     };
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {

@@ -120,6 +120,8 @@ export interface RequestExecutionResponse {
   headers: Record<string, string>;
   body: string;
   durationMs: number;
+  contentType?: string;
+  bodySizeBytes?: number;
 }
 
 export interface OpenTab {
