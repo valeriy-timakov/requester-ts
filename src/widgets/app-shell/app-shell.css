@@ -89,6 +89,9 @@
 }
 
 .workspace__content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   padding: 24px 20px;
 }
 
@@ -207,6 +210,11 @@
   cursor: pointer;
 }
 
+.action-button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
 .tree-node__delete {
   color: #ff9f9f;
 }
@@ -230,6 +238,11 @@
   gap: 16px;
 }
 
+.editor-panel__actions {
+  display: flex;
+  gap: 10px;
+}
+
 .editor-panel__subtitle {
   margin-top: 8px;
   color: #9cacc7;
@@ -237,6 +250,48 @@
 
 .editor-empty {
   min-height: 100%;
+}
+
+.response-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+  border-top: 1px solid rgba(167, 180, 204, 0.12);
+}
+
+.response-meta {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  color: #c8d3e3;
+}
+
+.response-headers summary {
+  cursor: pointer;
+  color: #dce6f4;
+}
+
+.response-body__label {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #8fa0bd;
+}
+
+.response-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 10px;
+  border: 1px solid rgba(167, 180, 204, 0.12);
+  background: rgba(10, 14, 20, 0.65);
+  padding: 12px;
+  color: #dce6f4;
+  max-height: 280px;
+  overflow: auto;
 }
 
 .editor-row {

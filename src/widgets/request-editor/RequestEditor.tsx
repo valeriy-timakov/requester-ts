@@ -1,18 +1,27 @@
 import { HTTP_METHODS } from '@/entities/request/model/requestFile';
-import type { RequestFile } from '@/shared/types/requester';
+import type { RequestAttachment, RequestFile } from '@/shared/types/requester';
+import { AttachmentsPanel } from './AttachmentsPanel';
 
 interface RequestEditorProps {
   request: RequestFile | null;
   canSave: boolean;
+  isSending: boolean;
   onSave: () => void;
+  onSend: () => void;
   onChange: (updater: (request: RequestFile) => RequestFile) => void;
+  onAddAttachment: () => void;
+  onRemoveAttachment: (attachment: RequestAttachment) => void;
 }
 
 export function RequestEditor({
   request,
   canSave,
+  isSending,
   onSave,
-  onChange
+  onSend,
+  onChange,
+  onAddAttachment,
+  onRemoveAttachment
 }: RequestEditorProps) {
   if (!request) {
     return (
@@ -34,13 +43,19 @@ export function RequestEditor({
             Manual save only. No autosave.
           </div>
         </div>
-        <button
-          className="action-button action-button--primary"
-          onClick={onSave}
-          type="button"
-        >
-          Save
-        </button>
+        <div className="editor-panel__actions">
+          <button className="action-button" onClick={onSave} type="button">
+            Save
+          </button>
+          <button
+            className="action-button action-button--primary"
+            onClick={onSend}
+            disabled={isSending}
+            type="button"
+          >
+            {isSending ? 'Sending...' : 'Send'}
+          </button>
+        </div>
       </div>
 
       <label className="field-group">
@@ -97,6 +112,12 @@ export function RequestEditor({
           }
         />
       </label>
+
+      <AttachmentsPanel
+        attachments={request.attachments ?? []}
+        onAddAttachment={onAddAttachment}
+        onRemoveAttachment={onRemoveAttachment}
+      />
     </div>
   );
 }

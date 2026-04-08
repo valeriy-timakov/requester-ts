@@ -2,6 +2,7 @@ import { access, mkdir, rename, rm, stat } from 'fs/promises';
 import path from 'path';
 import {
   createDefaultRequest,
+  getResponseFilePath,
   getRequestFilePath,
   validateEntryName
 } from './requestFileService';
@@ -20,10 +21,6 @@ async function ensureDoesNotExist(entryPath: string): Promise<void> {
   if (await pathExists(entryPath)) {
     throw new Error('An entry with that name already exists.');
   }
-}
-
-function getResponseFilePath(requestPath: string): string {
-  return requestPath.replace(/\.req$/i, '.resp');
 }
 
 async function deleteRequestArtifacts(requestPath: string): Promise<void> {

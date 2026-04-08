@@ -7,8 +7,8 @@ import {
   resolveInitialRootFolder
 } from './services/projectService';
 
-const isDev = !app.isPackaged;
-const devServerUrl = 'http://127.0.0.1:5173';
+const devServerUrl = process.env.REQUESTER_DEV_SERVER_URL?.trim();
+const isDev = !app.isPackaged && Boolean(devServerUrl);
 let mainWindow: BrowserWindow | null = null;
 
 function refreshWindowState(): void {
@@ -16,7 +16,7 @@ function refreshWindowState(): void {
     return;
   }
 
-  if (isDev) {
+  if (isDev && devServerUrl) {
     mainWindow.loadURL(devServerUrl);
     return;
   }
@@ -65,7 +65,7 @@ function createWindow(): void {
     }
   });
 
-  if (isDev) {
+  if (isDev && devServerUrl) {
     mainWindow.loadURL(devServerUrl);
   } else {
     mainWindow.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'));

@@ -82,6 +82,12 @@ export interface RequestOptions {
   followRedirects: boolean;
 }
 
+export interface RequestAttachment {
+  fileName: string;
+  relativePath: string;
+  size: number;
+}
+
 export interface RequestFile {
   version: 1;
   name: string;
@@ -92,11 +98,20 @@ export interface RequestFile {
   auth: RequestAuth;
   body: RequestBody;
   requestOptions: RequestOptions;
+  attachments?: RequestAttachment[];
 }
 
 export interface RequestDocument {
   path: string;
   data: RequestFile;
+}
+
+export interface RequestExecutionResponse {
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  body: string;
+  durationMs: number;
 }
 
 export interface OpenTab {

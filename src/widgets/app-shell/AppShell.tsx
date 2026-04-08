@@ -12,6 +12,7 @@ import {
   type DialogModalState
 } from '@/widgets/dialog-modal/DialogModal';
 import { RequestEditor } from '@/widgets/request-editor/RequestEditor';
+import { ResponseViewer } from '@/widgets/response-viewer/ResponseViewer';
 import { RequestTabs } from '@/widgets/request-tabs/RequestTabs';
 import { TreeView } from '@/widgets/tree-view/TreeView';
 import './app-shell.css';
@@ -41,6 +42,20 @@ export function AppShell() {
   );
 
   const activeTab = openTabs.find((tab) => tab.path === activeTabPath) ?? null;
+
+  function getRootRelativePath(absolutePath: string): string {
+    const normalizedRoot = appState.currentRootFolder.replace(/\\/g, '/');
+    const normalizedPath = absolutePath.replace(/\\/g, '/');
+    const prefix = normalizedRoot.endsWith('/')
+      ? normalizedRoot
+      : `${normalizedRoot}/`;
+
+    if (normalizedPath.startsWith(prefix)) {
+      return normalizedPath.slice(prefix.length);
+    }
+
+    throw new Error('Request path must be inside the current root folder.');
+  }
 
   async function loadTree() {
     const entries = await window.requesterApi.readTree();
@@ -335,14 +350,14 @@ export function AppShell() {
     );
   }
 
-  async function handleSaveTab(pathToSave = activeTabPath) {
+  async function handleSaveTab(pathToSave = activeTabPath): Promise<string | null> {
     if (!pathToSave) {
-      return;
+      return null;
     }
 
     const tab = openTabs.find((item) => item.path === pathToSave);
     if (!tab) {
-      return;
+      return null;
     }
 
     try {
@@ -367,17 +382,78 @@ export function AppShell() {
       setActiveTabPath(nextPath);
       await loadTree();
       setError(null);
+      return nextPath;
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
           : 'Failed to save request.'
       );
+      return null;
     }
   }
 
   async function handleSaveActiveTab() {
     await handleSaveTab(activeTabPath);
+  }
+
+  async function handleSendActiveTab() {
+    if (!activeTabPath) {
+      return;
+    }
+
+    const tab = openTabs.find((item) => item.path === activeTabPath);
+    if (!tab || tab.isSending) {
+      return;
+    }
+
+    const savedPath = tab.isDirty ? await handleSaveTab(activeTabPath) : tab.path;
+    if (!savedPath) {
+      return;
+    }
+
+    setOpenTabs((currentTabs) =>
+      currentTabs.map((currentTab) =>
+        currentTab.path === savedPath
+          ? { ...currentTab, isSending: true, responseError: null }
+          : currentTab
+      )
+    );
+
+    try {
+      const response = await window.requesterApi.executeRequest(
+        getRootRelativePath(savedPath)
+      );
+
+      setOpenTabs((currentTabs) =>
+        currentTabs.map((currentTab) =>
+          currentTab.path === savedPath
+            ? {
+                ...currentTab,
+                isSending: false,
+                responseError: null,
+                lastResponse: response
+              }
+            : currentTab
+        )
+      );
+      setError(null);
+    } catch (sendError) {
+      setOpenTabs((currentTabs) =>
+        currentTabs.map((currentTab) =>
+          currentTab.path === savedPath
+            ? {
+                ...currentTab,
+                isSending: false,
+                responseError:
+                  sendError instanceof Error
+                    ? sendError.message
+                    : 'Failed to execute request.'
+              }
+            : currentTab
+        )
+      );
+    }
   }
 
   async function handleCloseTab(pathToClose: string) {
@@ -458,10 +534,19 @@ export function AppShell() {
             <RequestEditor
               request={activeTab?.draft ?? null}
               canSave={Boolean(activeTab?.isDirty)}
+              isSending={Boolean(activeTab?.isSending)}
               onSave={() => {
                 void handleSaveActiveTab();
               }}
+              onSend={() => {
+                void handleSendActiveTab();
+              }}
               onChange={handleUpdateActiveRequest}
+            />
+            <ResponseViewer
+              response={activeTab?.lastResponse ?? null}
+              isLoading={Boolean(activeTab?.isSending)}
+              error={activeTab?.responseError ?? null}
             />
           </section>
         </main>

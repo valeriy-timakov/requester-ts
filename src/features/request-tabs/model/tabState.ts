@@ -2,7 +2,11 @@ import {
   areRequestFilesEqual,
   cloneRequestFile
 } from '@/entities/request/model/requestFile';
-import type { RequestDocument, RequestFile } from '@/shared/types/requester';
+import type {
+  RequestDocument,
+  RequestExecutionResponse,
+  RequestFile
+} from '@/shared/types/requester';
 
 export interface RequestTabState {
   path: string;
@@ -10,6 +14,9 @@ export interface RequestTabState {
   draft: RequestFile;
   lastSaved: RequestFile;
   isDirty: boolean;
+  isSending: boolean;
+  lastResponse: RequestExecutionResponse | null;
+  responseError: string | null;
 }
 
 export function createTabState(document: RequestDocument): RequestTabState {
@@ -18,7 +25,10 @@ export function createTabState(document: RequestDocument): RequestTabState {
     title: document.data.name,
     draft: cloneRequestFile(document.data),
     lastSaved: cloneRequestFile(document.data),
-    isDirty: false
+    isDirty: false,
+    isSending: false,
+    lastResponse: null,
+    responseError: null
   };
 }
 
@@ -48,6 +58,9 @@ export function markTabSaved(
     title: snapshot.name,
     draft: snapshot,
     lastSaved: cloneRequestFile(snapshot),
-    isDirty: false
+    isDirty: false,
+    isSending: tab.isSending,
+    lastResponse: tab.lastResponse,
+    responseError: tab.responseError
   };
 }

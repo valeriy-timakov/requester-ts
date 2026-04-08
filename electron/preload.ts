@@ -20,7 +20,16 @@ const requesterApi: RequesterApi = {
   readRequest: (filePath) =>
     ipcRenderer.invoke('requests:readRequest', filePath),
   saveRequest: (filePath, data) =>
-    ipcRenderer.invoke('requests:saveRequest', filePath, data)
+    ipcRenderer.invoke('requests:saveRequest', filePath, data),
+  addAttachment: (requestPath) =>
+    ipcRenderer.invoke('request:addAttachment', requestPath),
+  removeAttachment: (requestPath, attachmentRelativePath) =>
+    ipcRenderer.invoke(
+      'request:removeAttachment',
+      requestPath,
+      attachmentRelativePath
+    ),
+  executeRequest: (path) => ipcRenderer.invoke('request:execute', path)
 };
 
 contextBridge.exposeInMainWorld('requesterApi', requesterApi);

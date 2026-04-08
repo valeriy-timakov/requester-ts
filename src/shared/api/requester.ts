@@ -1,6 +1,7 @@
 import type {
   AppState,
   RequestDocument,
+  RequestExecutionResponse,
   RequestFile,
   TreeEntry
 } from '../types/requester';
@@ -17,4 +18,10 @@ export interface RequesterApi {
   deleteEntry: (entryPath: string) => Promise<void>;
   readRequest: (filePath: string) => Promise<RequestDocument>;
   saveRequest: (filePath: string, data: RequestFile) => Promise<void>;
+  addAttachment: (requestPath: string) => Promise<RequestDocument | null>;
+  removeAttachment: (
+    requestPath: string,
+    attachmentRelativePath: string
+  ) => Promise<RequestDocument>;
+  executeRequest: (path: string) => Promise<RequestExecutionResponse>;
 }
