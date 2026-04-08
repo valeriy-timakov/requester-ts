@@ -1,13 +1,18 @@
 import { access, copyFile, mkdir, readFile, rm, stat, writeFile } from 'fs/promises';
 import path from 'path';
+import {
+  DEFAULT_REQUEST_NAME,
+  DEFAULT_REQUEST_TIMEOUT_MS,
+  InvalidRequestFileError,
+  normalizeRequestFile,
+  parseRequestFileContent,
+  toCanonicalRequestFile
+} from '../../src/shared/requestNormalization';
+import { normalizeResponseFile } from '../../src/shared/responseNormalization';
 import type {
-  HttpMethod,
-  KeyValueEntry,
-  RequestAttachment,
-  RequestAuth,
-  RequestBody,
   RequestExecutionResponse,
-  RequestFile
+  RequestFile,
+  RequestReadResult
 } from '../../src/shared/types/requester';
 
 const INVALID_FILE_NAME_PATTERN = /[<>:"/\\|?*]/;
@@ -36,17 +41,12 @@ const RESERVED_FILE_NAMES = new Set([
   'LPT9'
 ]);
 
-export const DEFAULT_REQUEST_NAME = 'New Request';
-const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
-const HTTP_METHODS: HttpMethod[] = [
-  'GET',
-  'POST',
-  'PUT',
-  'PATCH',
-  'DELETE',
-  'HEAD',
-  'OPTIONS'
-];
+export { DEFAULT_REQUEST_NAME };
+
+function resolveRequestFallbackName(filePath: string): string {
+  const fileName = path.basename(filePath, path.extname(filePath)).trim();
+  return fileName || DEFAULT_REQUEST_NAME;
+}
 
 export function createDefaultRequest(name = DEFAULT_REQUEST_NAME): RequestFile {
   return {
@@ -100,163 +100,6 @@ function normalizeAttachmentRelativePath(relativePath: string): string {
 
   const fileName = normalized.startsWith('./') ? normalized.slice(2) : normalized;
   return normalizeAttachmentFileName(fileName);
-}
-
-function normalizeAttachments(attachments: unknown): RequestAttachment[] {
-  if (!Array.isArray(attachments)) {
-    return [];
-  }
-
-  const result: RequestAttachment[] = [];
-  for (const item of attachments) {
-    if (!item || typeof item !== 'object') {
-      continue;
-    }
-
-    const candidate = item as Partial<RequestAttachment>;
-    if (
-      typeof candidate.fileName !== 'string' ||
-      typeof candidate.relativePath !== 'string' ||
-      typeof candidate.size !== 'number' ||
-      Number.isNaN(candidate.size) ||
-      candidate.size < 0
-    ) {
-      continue;
-    }
-
-    let fileName: string;
-    try {
-      fileName = normalizeAttachmentFileName(candidate.fileName);
-      const normalizedPath = normalizeAttachmentRelativePath(
-        candidate.relativePath
-      );
-      if (normalizedPath !== fileName) {
-        continue;
-      }
-    } catch {
-      continue;
-    }
-
-    result.push({
-      fileName,
-      relativePath: `./${fileName}`,
-      size: candidate.size
-    });
-  }
-
-  return result;
-}
-
-function normalizeMethod(method: unknown): HttpMethod {
-  if (typeof method !== 'string') {
-    return 'GET';
-  }
-
-  const normalizedMethod = method.toUpperCase() as HttpMethod;
-  if (HTTP_METHODS.includes(normalizedMethod)) {
-    return normalizedMethod;
-  }
-
-  return 'GET';
-}
-
-function normalizeEntries(entries: unknown): KeyValueEntry[] {
-  if (!Array.isArray(entries)) {
-    return [];
-  }
-
-  return entries
-    .map((entry) => {
-      if (!entry || typeof entry !== 'object') {
-        return null;
-      }
-
-      const candidate = entry as Partial<KeyValueEntry>;
-      return {
-        key: typeof candidate.key === 'string' ? candidate.key : '',
-        value: typeof candidate.value === 'string' ? candidate.value : '',
-        ...(typeof candidate.enabled === 'boolean'
-          ? { enabled: candidate.enabled }
-          : {})
-      };
-    })
-    .filter((entry): entry is KeyValueEntry => entry !== null);
-}
-
-function normalizeAuth(auth: unknown): RequestAuth {
-  if (!auth || typeof auth !== 'object') {
-    return { type: 'none' };
-  }
-
-  const candidate = auth as Partial<RequestAuth>;
-
-  if (candidate.type === 'basic') {
-    return {
-      type: 'basic',
-      username: typeof candidate.username === 'string' ? candidate.username : '',
-      password: typeof candidate.password === 'string' ? candidate.password : ''
-    };
-  }
-
-  if (candidate.type === 'bearer') {
-    return {
-      type: 'bearer',
-      token: typeof candidate.token === 'string' ? candidate.token : ''
-    };
-  }
-
-  return { type: 'none' };
-}
-
-function normalizeBody(body: unknown): RequestBody {
-  if (!body || typeof body !== 'object') {
-    return { type: 'none' };
-  }
-
-  const candidate = body as Partial<RequestBody>;
-  if (
-    candidate.type === 'text' ||
-    candidate.type === 'json' ||
-    candidate.type === 'xml'
-  ) {
-    return {
-      type: candidate.type,
-      content: typeof candidate.content === 'string' ? candidate.content : ''
-    };
-  }
-
-  return { type: 'none' };
-}
-
-function normalizeRequestFile(requestFile: unknown): RequestFile {
-  const source =
-    requestFile && typeof requestFile === 'object'
-      ? (requestFile as Partial<RequestFile>)
-      : {};
-
-  return {
-    version: 1,
-    name: typeof source.name === 'string' ? source.name : DEFAULT_REQUEST_NAME,
-    method: normalizeMethod(source.method),
-    url: typeof source.url === 'string' ? source.url : '',
-    queryParams: normalizeEntries(source.queryParams),
-    headers: normalizeEntries(source.headers),
-    auth: normalizeAuth(source.auth),
-    body: normalizeBody(source.body),
-    requestOptions: {
-      followRedirects:
-        typeof source.requestOptions?.followRedirects === 'boolean'
-          ? source.requestOptions.followRedirects
-          : true,
-      timeoutMs:
-        typeof source.requestOptions?.timeoutMs === 'number' &&
-        Number.isFinite(source.requestOptions.timeoutMs) &&
-        source.requestOptions.timeoutMs > 0
-          ? source.requestOptions.timeoutMs
-          : DEFAULT_REQUEST_TIMEOUT_MS
-    },
-    attachments: normalizeAttachments(source.attachments)
-  };
 }
 
 async function pathExists(entryPath: string): Promise<boolean> {
@@ -330,26 +173,79 @@ export function getResponseFilePath(requestPath: string): string {
 
 export async function readRequestFile(filePath: string): Promise<RequestFile> {
   const content = await readFile(filePath, 'utf8');
-  const parsed = JSON.parse(content) as unknown;
+  const parsed = parseRequestFileContent(content);
+  return normalizeRequestFile(parsed, resolveRequestFallbackName(filePath));
+}
 
-  if (!parsed || typeof parsed !== 'object') {
-    throw new Error('Request file is invalid.');
+export async function readResponseFile(
+  requestPath: string
+): Promise<RequestExecutionResponse | null> {
+  const responsePath = getResponseFilePath(requestPath);
+  let responseContent: string;
+
+  try {
+    responseContent = await readFile(responsePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      return null;
+    }
+
+    throw error;
   }
 
-  return normalizeRequestFile(parsed);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(responseContent) as unknown;
+  } catch (error) {
+    console.warn(`Ignoring invalid response file at ${responsePath}.`, error);
+    return null;
+  }
+
+  const normalized = normalizeResponseFile(parsed);
+  if (!normalized) {
+    console.warn(`Ignoring invalid response file at ${responsePath}.`);
+    return null;
+  }
+
+  return normalized;
+}
+
+export async function readRequestDocument(filePath: string): Promise<RequestReadResult> {
+  try {
+    const request = await readRequestFile(filePath);
+    const lastResponse = await readResponseFile(filePath);
+    return {
+      ok: true,
+      document: {
+        path: filePath,
+        data: request,
+        lastResponse
+      }
+    };
+  } catch (error) {
+    if (error instanceof InvalidRequestFileError) {
+      return {
+        ok: false,
+        error: error.toSerializable()
+      };
+    }
+
+    throw error;
+  }
 }
 
 export async function saveRequestFile(
   filePath: string,
   requestFile: RequestFile
 ): Promise<void> {
-  const normalizedRequest = {
-    ...normalizeRequestFile(requestFile),
-    name: validateEntryName(requestFile.name)
-  } satisfies RequestFile;
+  const normalizedRequest = normalizeRequestFile(requestFile, DEFAULT_REQUEST_NAME);
+  const canonicalRequest = toCanonicalRequestFile({
+    ...normalizedRequest,
+    name: validateEntryName(normalizedRequest.name)
+  });
 
   await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, JSON.stringify(normalizedRequest, null, 2), 'utf8');
+  await writeFile(filePath, JSON.stringify(canonicalRequest, null, 2), 'utf8');
 }
 
 export async function addAttachmentToRequestFile(
@@ -443,6 +339,14 @@ export async function saveResponseFile(
   response: RequestExecutionResponse
 ): Promise<void> {
   const responsePath = getResponseFilePath(requestPath);
+  const normalizedResponse = normalizeResponseFile(response) ?? {
+    status: 0,
+    statusText: '',
+    headers: {},
+    body: '',
+    durationMs: 0
+  };
+
   await mkdir(path.dirname(responsePath), { recursive: true });
-  await writeFile(responsePath, JSON.stringify(response, null, 2), 'utf8');
+  await writeFile(responsePath, JSON.stringify(normalizedResponse, null, 2), 'utf8');
 }

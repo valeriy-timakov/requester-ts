@@ -427,8 +427,13 @@ export function AppShell() {
     }
 
     try {
-      const requestDocument = await window.requesterApi.readRequest(requestPath);
-      const nextTab = createTabState(requestDocument);
+      const result = await window.requesterApi.readRequest(requestPath);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+
+      const nextTab = createTabState(result.document);
 
       setOpenTabs((currentTabs) => [...currentTabs, nextTab]);
       setActiveTabPath(requestPath);

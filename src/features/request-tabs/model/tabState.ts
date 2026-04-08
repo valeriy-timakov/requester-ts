@@ -27,7 +27,7 @@ export function createTabState(document: RequestDocument): RequestTabState {
     lastSaved: cloneRequestFile(document.data),
     isDirty: false,
     isSending: false,
-    lastResponse: null,
+    lastResponse: document.lastResponse ?? null,
     responseError: null
   };
 }

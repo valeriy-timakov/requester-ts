@@ -3,6 +3,7 @@ import type {
   RequestDocument,
   RequestExecutionResponse,
   RequestFile,
+  RequestReadResult,
   TreeEntry
 } from '../types/requester';
 
@@ -22,7 +23,7 @@ export interface RequesterApi {
   createRequest: (parentPath: string, name: string) => Promise<string>;
   renameEntry: (entryPath: string, newName: string) => Promise<string>;
   deleteEntry: (entryPath: string) => Promise<void>;
-  readRequest: (filePath: string) => Promise<RequestDocument>;
+  readRequest: (filePath: string) => Promise<RequestReadResult>;
   saveRequest: (filePath: string, data: RequestFile) => Promise<void>;
   addAttachment: (requestPath: string) => Promise<RequestDocument | null>;
   removeAttachment: (

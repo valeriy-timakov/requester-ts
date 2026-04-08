@@ -112,7 +112,23 @@ export interface RequestFile {
 export interface RequestDocument {
   path: string;
   data: RequestFile;
+  lastResponse?: RequestExecutionResponse | null;
 }
+
+export interface RequestFileError {
+  code: 'INVALID_REQUEST_FILE';
+  message: string;
+}
+
+export type RequestReadResult =
+  | {
+      ok: true;
+      document: RequestDocument;
+    }
+  | {
+      ok: false;
+      error: RequestFileError;
+    };
 
 export interface RequestExecutionResponse {
   status: number;
