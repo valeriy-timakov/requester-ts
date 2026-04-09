@@ -19,6 +19,8 @@ const isDev = !app.isPackaged && Boolean(devServerUrl);
 let mainWindow: BrowserWindow | null = null;
 let allowWindowClose = false;
 
+app.setName('Requester');
+
 function dispatchMenuAction(action: MenuAction): void {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -103,6 +105,7 @@ async function confirmWindowCloseWithDirtyTabs(): Promise<void> {
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
+    title: 'Requester',
     width: 1200,
     height: 800,
     webPreferences: {

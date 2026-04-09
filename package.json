@@ -19,17 +19,32 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Requester desktop API request manager",
   "build": {
-    "appId": "com.local.api-client",
-    "productName": "Local API Client",
+    "appId": "com.requester.app",
+    "productName": "Requester",
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "directories": {
       "output": "release"
     },
     "files": [
       "dist",
       "dist-electron"
-    ]
+    ],
+    "extraMetadata": {
+      "main": "dist-electron/electron/main.js"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development"
+    }
   },
   "dependencies": {
     "react": "^19.2.4",
