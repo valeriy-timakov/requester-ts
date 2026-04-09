@@ -3,7 +3,15 @@ export interface AppMetadata {
 }
 
 export interface AppState {
-  currentRootFolder: string;
+  currentRootFolder: string | null;
+  rootAvailable: boolean;
+  rootError: string | null;
+}
+
+export interface RootFolderStatus {
+  currentRootFolder: string | null;
+  isAvailable: boolean;
+  errorMessage: string | null;
 }
 
 export type TreeEntryType = 'folder' | 'request';

@@ -2,8 +2,10 @@ import { ipcMain } from 'electron';
 import {
   ensureDefaultRootFolder,
   getAppState,
+  getCurrentRootStatus,
   getCurrentRootFolder,
-  openRootFolderDialog
+  pickRootFolderDialog,
+  switchRootFolder
 } from '../services/projectService';
 import { setWindowHasDirtyTabs } from '../services/windowStateService';
 
@@ -16,12 +18,20 @@ export function registerAppStateHandlers(): void {
     return getCurrentRootFolder();
   });
 
+  ipcMain.handle('app-state:getCurrentRootStatus', async () => {
+    return getCurrentRootStatus();
+  });
+
   ipcMain.handle('app-state:ensureDefaultRootFolder', async () => {
     return ensureDefaultRootFolder();
   });
 
-  ipcMain.handle('app-state:openRootFolderDialog', async () => {
-    return openRootFolderDialog();
+  ipcMain.handle('app-state:pickRootFolderDialog', async () => {
+    return pickRootFolderDialog();
+  });
+
+  ipcMain.handle('app-state:switchRootFolder', async (_event, folderPath: string) => {
+    return switchRootFolder(folderPath);
   });
 
   ipcMain.handle(

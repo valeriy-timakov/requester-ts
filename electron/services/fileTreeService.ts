@@ -45,9 +45,5 @@ async function readFolderEntries(folderPath: string): Promise<TreeEntry[]> {
 }
 
 export async function readTree(rootFolder: string): Promise<TreeEntry[]> {
-  try {
-    return readFolderEntries(rootFolder);
-  } catch {
-    return [];
-  }
+  return readFolderEntries(rootFolder);
 }

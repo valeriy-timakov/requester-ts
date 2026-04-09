@@ -44,7 +44,9 @@ export async function createRequest(
   const normalizedName = validateEntryName(name);
   const requestPath = getRequestFilePath(parentPath, normalizedName);
   await ensureDoesNotExist(requestPath);
-  await saveRequestFile(requestPath, createDefaultRequest(normalizedName));
+  await saveRequestFile(requestPath, createDefaultRequest(normalizedName), {
+    allowCreate: true
+  });
   return requestPath;
 }
 

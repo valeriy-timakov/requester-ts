@@ -172,7 +172,17 @@ export function getResponseFilePath(requestPath: string): string {
 }
 
 export async function readRequestFile(filePath: string): Promise<RequestFile> {
-  const content = await readFile(filePath, 'utf8');
+  let content: string;
+  try {
+    content = await readFile(filePath, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      throw new Error('Request file no longer exists.');
+    }
+
+    throw error;
+  }
+
   const parsed = parseRequestFileContent(content);
   return normalizeRequestFile(parsed, resolveRequestFallbackName(filePath));
 }
@@ -236,7 +246,8 @@ export async function readRequestDocument(filePath: string): Promise<RequestRead
 
 export async function saveRequestFile(
   filePath: string,
-  requestFile: RequestFile
+  requestFile: RequestFile,
+  options?: { allowCreate?: boolean }
 ): Promise<void> {
   const normalizedRequest = normalizeRequestFile(requestFile, DEFAULT_REQUEST_NAME);
   const canonicalRequest = toCanonicalRequestFile({
@@ -244,7 +255,24 @@ export async function saveRequestFile(
     name: validateEntryName(normalizedRequest.name)
   });
 
-  await mkdir(path.dirname(filePath), { recursive: true });
+  const allowCreate = options?.allowCreate ?? false;
+  if (!allowCreate) {
+    try {
+      const fileStats = await stat(filePath);
+      if (!fileStats.isFile()) {
+        throw new Error('Request file no longer exists.');
+      }
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        throw new Error('Request file no longer exists.');
+      }
+
+      throw error;
+    }
+  } else {
+    await mkdir(path.dirname(filePath), { recursive: true });
+  }
+
   await writeFile(filePath, JSON.stringify(canonicalRequest, null, 2), 'utf8');
 }
 

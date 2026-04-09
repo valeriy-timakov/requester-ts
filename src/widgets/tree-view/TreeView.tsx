@@ -2,12 +2,14 @@ import type { TreeEntry } from '@/shared/types/requester';
 
 interface TreeViewProps {
   entries: TreeEntry[];
-  rootPath: string;
+  rootPath: string | null;
+  canMutate: boolean;
   onOpenRequest: (path: string) => void;
   onCreateFolder: (parentPath: string) => void;
   onCreateRequest: (parentPath: string) => void;
   onRenameEntry: (entry: TreeEntry) => void;
   onDeleteEntry: (entry: TreeEntry) => void;
+  onRefresh: () => void;
 }
 
 interface TreeNodeProps {
@@ -101,25 +103,46 @@ function TreeNode({
 export function TreeView({
   entries,
   rootPath,
+  canMutate,
   onOpenRequest,
   onCreateFolder,
   onCreateRequest,
   onRenameEntry,
-  onDeleteEntry
+  onDeleteEntry,
+  onRefresh
 }: TreeViewProps) {
   return (
     <>
       <div className="tree-toolbar">
-        <button onClick={() => onCreateFolder(rootPath)} type="button">
+        <button
+          disabled={!canMutate || !rootPath}
+          onClick={() => {
+            if (rootPath) {
+              onCreateFolder(rootPath);
+            }
+          }}
+          type="button"
+        >
           New Folder
         </button>
-        <button onClick={() => onCreateRequest(rootPath)} type="button">
+        <button
+          disabled={!canMutate || !rootPath}
+          onClick={() => {
+            if (rootPath) {
+              onCreateRequest(rootPath);
+            }
+          }}
+          type="button"
+        >
           New Request
+        </button>
+        <button onClick={onRefresh} type="button">
+          Refresh
         </button>
       </div>
 
       {entries.length === 0 ? (
-        <div className="tree-empty">No folders or request files found.</div>
+        <div className="tree-empty">No collections or requests yet.</div>
       ) : (
         <ul className="tree-list">
           {entries.map((entry) => (

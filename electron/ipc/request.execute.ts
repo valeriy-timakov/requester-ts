@@ -40,6 +40,15 @@ export function registerRequestExecutionHandlers(): void {
       await saveResponseFile(requestPath, response);
       return response;
     } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code === 'ENOENT') {
+        throw new Error('Request file no longer exists.');
+      }
+
+      if (code === 'EACCES' || code === 'EPERM') {
+        throw new Error('Cannot access request file due to permissions.');
+      }
+
       const message =
         error instanceof Error && error.message
           ? error.message

@@ -5,11 +5,16 @@ const requesterApi: RequesterApi = {
   getAppState: () => ipcRenderer.invoke('app-state:getAppState'),
   getCurrentRootFolder: () =>
     ipcRenderer.invoke('app-state:getCurrentRootFolder'),
-  openRootFolderDialog: () =>
-    ipcRenderer.invoke('app-state:openRootFolderDialog'),
+  getCurrentRootStatus: () =>
+    ipcRenderer.invoke('app-state:getCurrentRootStatus'),
+  pickRootFolderDialog: () =>
+    ipcRenderer.invoke('app-state:pickRootFolderDialog'),
+  switchRootFolder: (folderPath) =>
+    ipcRenderer.invoke('app-state:switchRootFolder', folderPath),
   ensureDefaultRootFolder: () =>
     ipcRenderer.invoke('app-state:ensureDefaultRootFolder'),
   readTree: () => ipcRenderer.invoke('tree:readTree'),
+  refreshTree: () => ipcRenderer.invoke('tree:refresh'),
   createFolder: (parentPath, name) =>
     ipcRenderer.invoke('tree:createFolder', parentPath, name),
   createRequest: (parentPath, name) =>

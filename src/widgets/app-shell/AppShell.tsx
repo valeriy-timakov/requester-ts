@@ -24,7 +24,9 @@ import { TreeView } from '@/widgets/tree-view/TreeView';
 import './app-shell.css';
 
 const initialAppState: AppState = {
-  currentRootFolder: ''
+  currentRootFolder: null,
+  rootAvailable: false,
+  rootError: null
 };
 
 type DirtyCloseChoice = 'save' | 'discard' | 'cancel';
@@ -66,6 +68,7 @@ export function AppShell() {
 
   const activeTab = openTabs.find((tab) => tab.path === activeTabPath) ?? null;
   const hasDirtyTabs = openTabs.some((tab) => tab.isDirty);
+  const isRootReady = Boolean(appState.currentRootFolder && appState.rootAvailable);
 
   function setActionError(fallback: string, errorValue: unknown): void {
     console.error(errorValue);
@@ -84,6 +87,10 @@ export function AppShell() {
   }
 
   function getRootRelativePath(absolutePath: string): string {
+    if (!appState.currentRootFolder) {
+      throw new Error('No root folder is selected.');
+    }
+
     const normalizedRoot = appState.currentRootFolder.replace(/\\/g, '/');
     const normalizedPath = absolutePath.replace(/\\/g, '/');
     const prefix = normalizedRoot.endsWith('/')
@@ -97,9 +104,75 @@ export function AppShell() {
     throw new Error('Request path must be inside the current root folder.');
   }
 
-  async function loadTree() {
-    const entries = await window.requesterApi.readTree();
+  function collectRequestPaths(entries: TreeEntry[], result = new Set<string>): Set<string> {
+    for (const entry of entries) {
+      if (entry.type === 'request') {
+        result.add(entry.path);
+        continue;
+      }
+
+      if (entry.children && entry.children.length > 0) {
+        collectRequestPaths(entry.children, result);
+      }
+    }
+
+    return result;
+  }
+
+  function closeMissingTabsAfterTreeReload(entries: TreeEntry[]): void {
+    const existingRequestPaths = collectRequestPaths(entries);
+    const nextTabs = openTabs.filter((tab) => existingRequestPaths.has(tab.path));
+
+    if (nextTabs.length === openTabs.length) {
+      return;
+    }
+
+    const removedCount = openTabs.length - nextTabs.length;
+    const nextActivePath = nextTabs.some((tab) => tab.path === activeTabPath)
+      ? activeTabPath
+      : nextTabs[0]?.path ?? null;
+
+    setOpenTabs(nextTabs);
+    setActiveTabPath(nextActivePath);
+    setError(
+      removedCount === 1
+        ? 'An open request was closed because the file no longer exists.'
+        : 'Some open requests were closed because files no longer exist.'
+    );
+  }
+
+  async function refreshAppState() {
+    const state = await window.requesterApi.getAppState();
+    setAppState(state);
+    return state;
+  }
+
+  async function loadTree(options?: { closeMissingTabs?: boolean; isManualRefresh?: boolean }) {
+    const rootStatus = await window.requesterApi.getCurrentRootStatus();
+    const nextRoot = rootStatus.currentRootFolder;
+
+    setAppState((currentState) => ({
+      ...currentState,
+      currentRootFolder: nextRoot,
+      rootAvailable: rootStatus.isAvailable,
+      rootError: rootStatus.errorMessage
+    }));
+
+    if (!rootStatus.isAvailable || !nextRoot) {
+      setTreeEntries([]);
+      setOpenTabs([]);
+      setActiveTabPath(null);
+      return;
+    }
+
+    const entries = options?.isManualRefresh
+      ? await window.requesterApi.refreshTree()
+      : await window.requesterApi.readTree();
     setTreeEntries(entries);
+
+    if (options?.closeMissingTabs) {
+      closeMissingTabsAfterTreeReload(entries);
+    }
   }
 
   async function loadInitialState() {
@@ -107,9 +180,12 @@ export function AppShell() {
     setError(null);
 
     try {
-      const state = await window.requesterApi.getAppState();
-      setAppState(state);
-      await loadTree();
+      const state = await refreshAppState();
+      if (state.rootAvailable && state.currentRootFolder) {
+        await loadTree();
+      } else {
+        setTreeEntries([]);
+      }
     } catch (loadError) {
       setActionError('Failed to load application state.', loadError);
       setTreeEntries([]);
@@ -279,15 +355,29 @@ export function AppShell() {
 
   async function handleOpenRootFolder() {
     try {
-      const currentRoot = appState.currentRootFolder;
-      const nextAppState = await window.requesterApi.openRootFolderDialog();
-
-      setAppState(nextAppState);
-      if (nextAppState.currentRootFolder !== currentRoot) {
-        setOpenTabs([]);
-        setActiveTabPath(null);
+      const selectedFolder = await window.requesterApi.pickRootFolderDialog();
+      if (!selectedFolder) {
+        return;
       }
 
+      if (selectedFolder === appState.currentRootFolder) {
+        return;
+      }
+
+      if (hasDirtyTabs) {
+        const confirmed = await requestConfirmation(
+          'You have unsaved changes. Switch root folder without saving?',
+          'Switch'
+        );
+        if (!confirmed) {
+          return;
+        }
+      }
+
+      const nextAppState = await window.requesterApi.switchRootFolder(selectedFolder);
+      setAppState(nextAppState);
+      setOpenTabs([]);
+      setActiveTabPath(null);
       await loadTree();
       setError(null);
     } catch (folderError) {
@@ -295,7 +385,24 @@ export function AppShell() {
     }
   }
 
+  async function handleRefreshTree(): Promise<void> {
+    try {
+      await loadTree({ closeMissingTabs: true, isManualRefresh: true });
+    } catch (treeError) {
+      await refreshAppState();
+      setTreeEntries([]);
+      setOpenTabs([]);
+      setActiveTabPath(null);
+      setActionError('Failed to refresh tree.', treeError);
+    }
+  }
+
   async function handleCreateFolder(parentPath: string) {
+    if (!appState.currentRootFolder || !appState.rootAvailable) {
+      setError('No root folder is available. Choose another folder to continue.');
+      return;
+    }
+
     const name = await requestPrompt('Create Folder', 'New Folder', 'Create');
     if (!name) {
       return;
@@ -311,6 +418,11 @@ export function AppShell() {
   }
 
   async function handleCreateRequest(parentPath: string) {
+    if (!appState.currentRootFolder || !appState.rootAvailable) {
+      setError('No root folder is available. Choose another folder to continue.');
+      return;
+    }
+
     const name = await requestPrompt('Create Request', 'New Request', 'Create');
     if (!name) {
       return;
@@ -420,6 +532,11 @@ export function AppShell() {
   }
 
   async function handleOpenRequest(requestPath: string) {
+    if (!appState.currentRootFolder || !appState.rootAvailable) {
+      setError('No root folder is available. Choose another folder to continue.');
+      return;
+    }
+
     const existingTab = openTabs.find((tab) => tab.path === requestPath);
     if (existingTab) {
       setActiveTabPath(existingTab.path);
@@ -495,6 +612,11 @@ export function AppShell() {
   }
 
   async function handleSaveTab(pathToSave: string | null): Promise<string | null> {
+    if (!appState.currentRootFolder || !appState.rootAvailable) {
+      setError('No root folder is available. Choose another folder to continue.');
+      return null;
+    }
+
     if (!pathToSave) {
       return null;
     }
@@ -673,8 +795,8 @@ export function AppShell() {
           <div className="sidebar__header">
             <div>
               <div className="eyebrow">Root Folder</div>
-              <div className="root-folder-path" title={appState.currentRootFolder}>
-                {appState.currentRootFolder || 'Loading...'}
+              <div className="root-folder-path" title={appState.currentRootFolder ?? undefined}>
+                {appState.currentRootFolder ?? 'No folder selected'}
               </div>
             </div>
           </div>
@@ -682,15 +804,32 @@ export function AppShell() {
           <div className="sidebar__body">
             {isLoading ? (
               <div className="tree-empty">Loading tree...</div>
+            ) : !isRootReady ? (
+              <div className="tree-empty tree-empty--error">
+                <div>{appState.rootError ?? 'Root folder is unavailable.'}</div>
+                <button
+                  className="action-button"
+                  onClick={() => {
+                    void handleOpenRootFolder();
+                  }}
+                  type="button"
+                >
+                  Choose Folder
+                </button>
+              </div>
             ) : (
               <TreeView
                 entries={treeEntries}
                 rootPath={appState.currentRootFolder}
+                canMutate={isRootReady}
                 onOpenRequest={handleOpenRequest}
                 onCreateFolder={handleCreateFolder}
                 onCreateRequest={handleCreateRequest}
                 onRenameEntry={handleRenameEntry}
                 onDeleteEntry={handleDeleteEntry}
+                onRefresh={() => {
+                  void handleRefreshTree();
+                }}
               />
             )}
           </div>
@@ -712,7 +851,15 @@ export function AppShell() {
           <section className="workspace__content">
             {error ? <div className="inline-error">{error}</div> : null}
 
-            {activeTab ? (
+            {!isRootReady ? (
+              <div className="workspace-empty">
+                <div className="workspace__label">Project Unavailable</div>
+                <div className="workspace__placeholder">
+                  {appState.rootError ??
+                    'Choose a root folder to view collections and requests.'}
+                </div>
+              </div>
+            ) : activeTab ? (
               <>
                 <RequestEditor
                   request={activeTab.draft}

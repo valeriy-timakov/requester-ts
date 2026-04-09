@@ -9,10 +9,13 @@ import {
 import { getCurrentRootFolder } from '../services/projectService';
 
 export function registerTreeHandlers(): void {
-  ipcMain.handle('tree:readTree', async () => {
+  const readTreeFromCurrentRoot = async () => {
     const rootFolder = await getCurrentRootFolder();
     return readTree(rootFolder);
-  });
+  };
+
+  ipcMain.handle('tree:readTree', readTreeFromCurrentRoot);
+  ipcMain.handle('tree:refresh', readTreeFromCurrentRoot);
 
   ipcMain.handle(
     'tree:createFolder',

@@ -1,5 +1,6 @@
 import type {
   AppState,
+  RootFolderStatus,
   RequestDocument,
   RequestExecutionResponse,
   RequestFile,
@@ -16,9 +17,12 @@ export type MenuAction =
 export interface RequesterApi {
   getAppState: () => Promise<AppState>;
   getCurrentRootFolder: () => Promise<string>;
-  openRootFolderDialog: () => Promise<AppState>;
+  getCurrentRootStatus: () => Promise<RootFolderStatus>;
+  pickRootFolderDialog: () => Promise<string | null>;
+  switchRootFolder: (folderPath: string) => Promise<AppState>;
   ensureDefaultRootFolder: () => Promise<string>;
   readTree: () => Promise<TreeEntry[]>;
+  refreshTree: () => Promise<TreeEntry[]>;
   createFolder: (parentPath: string, name: string) => Promise<void>;
   createRequest: (parentPath: string, name: string) => Promise<string>;
   renameEntry: (entryPath: string, newName: string) => Promise<string>;
