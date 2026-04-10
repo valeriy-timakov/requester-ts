@@ -6,6 +6,10 @@ import {
   deleteEntry,
   renameEntry
 } from '../services/fileMutationService';
+import {
+  isPathInsideRoot,
+  resolvePathFromRoot
+} from '../services/pathSafety';
 import { getCurrentRootFolder } from '../services/projectService';
 
 export function registerTreeHandlers(): void {
@@ -20,25 +24,53 @@ export function registerTreeHandlers(): void {
   ipcMain.handle(
     'tree:createFolder',
     async (_event, parentPath: string, name: string) => {
-      await createFolder(parentPath, name);
+      const rootFolder = await getCurrentRootFolder();
+      const absoluteParentPath = resolvePathFromRoot(rootFolder, parentPath);
+
+      if (!isPathInsideRoot(rootFolder, absoluteParentPath)) {
+        throw new Error('Folder path must be inside the current root folder.');
+      }
+
+      await createFolder(absoluteParentPath, name);
     }
   );
 
   ipcMain.handle(
     'tree:createRequest',
     async (_event, parentPath: string, name: string) => {
-      return createRequest(parentPath, name);
+      const rootFolder = await getCurrentRootFolder();
+      const absoluteParentPath = resolvePathFromRoot(rootFolder, parentPath);
+
+      if (!isPathInsideRoot(rootFolder, absoluteParentPath)) {
+        throw new Error('Folder path must be inside the current root folder.');
+      }
+
+      return createRequest(absoluteParentPath, name);
     }
   );
 
   ipcMain.handle(
     'tree:renameEntry',
     async (_event, entryPath: string, newName: string) => {
-      return renameEntry(entryPath, newName);
+      const rootFolder = await getCurrentRootFolder();
+      const absoluteEntryPath = resolvePathFromRoot(rootFolder, entryPath);
+
+      if (!isPathInsideRoot(rootFolder, absoluteEntryPath)) {
+        throw new Error('Entry path must be inside the current root folder.');
+      }
+
+      return renameEntry(absoluteEntryPath, newName);
     }
   );
 
   ipcMain.handle('tree:deleteEntry', async (_event, entryPath: string) => {
-    await deleteEntry(entryPath);
+    const rootFolder = await getCurrentRootFolder();
+    const absoluteEntryPath = resolvePathFromRoot(rootFolder, entryPath);
+
+    if (!isPathInsideRoot(rootFolder, absoluteEntryPath)) {
+      throw new Error('Entry path must be inside the current root folder.');
+    }
+
+    await deleteEntry(absoluteEntryPath);
   });
 }

@@ -20,6 +20,14 @@ module.exports = {
     }
   },
   ignorePatterns: ['dist', 'dist-electron'],
+  overrides: [
+    {
+      files: ['scripts/*.js'],
+      rules: {
+        '@typescript-eslint/no-require-imports': 'off'
+      }
+    }
+  ],
   rules: {
     'react/react-in-jsx-scope': 'off'
   }

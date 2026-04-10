@@ -121,24 +121,27 @@ export function AppShell() {
 
   function closeMissingTabsAfterTreeReload(entries: TreeEntry[]): void {
     const existingRequestPaths = collectRequestPaths(entries);
-    const nextTabs = openTabs.filter((tab) => existingRequestPaths.has(tab.path));
+    setOpenTabs((currentTabs) => {
+      const nextTabs = currentTabs.filter((tab) => existingRequestPaths.has(tab.path));
 
-    if (nextTabs.length === openTabs.length) {
-      return;
-    }
+      if (nextTabs.length === currentTabs.length) {
+        return currentTabs;
+      }
 
-    const removedCount = openTabs.length - nextTabs.length;
-    const nextActivePath = nextTabs.some((tab) => tab.path === activeTabPath)
-      ? activeTabPath
-      : nextTabs[0]?.path ?? null;
+      const removedCount = currentTabs.length - nextTabs.length;
+      setActiveTabPath((currentPath) =>
+        nextTabs.some((tab) => tab.path === currentPath)
+          ? currentPath
+          : nextTabs[0]?.path ?? null
+      );
+      setError(
+        removedCount === 1
+          ? 'An open request was closed because the file no longer exists.'
+          : 'Some open requests were closed because files no longer exist.'
+      );
 
-    setOpenTabs(nextTabs);
-    setActiveTabPath(nextActivePath);
-    setError(
-      removedCount === 1
-        ? 'An open request was closed because the file no longer exists.'
-        : 'Some open requests were closed because files no longer exist.'
-    );
+      return nextTabs;
+    });
   }
 
   async function refreshAppState() {
@@ -292,13 +295,14 @@ export function AppShell() {
 
   function getActiveFallbackPath(
     tabsBefore: RequestTabState[],
-    tabsAfter: RequestTabState[]
+    tabsAfter: RequestTabState[],
+    currentActivePath: string | null
   ): string | null {
-    if (!activeTabPath) {
+    if (!currentActivePath) {
       return null;
     }
 
-    const activeIndex = tabsBefore.findIndex((tab) => tab.path === activeTabPath);
+    const activeIndex = tabsBefore.findIndex((tab) => tab.path === currentActivePath);
     if (activeIndex === -1) {
       return tabsAfter[0]?.path ?? null;
     }
@@ -512,17 +516,21 @@ export function AppShell() {
 
     try {
       await window.requesterApi.deleteEntry(entry.path);
+      setOpenTabs((currentTabs) => {
+        const nextTabs = currentTabs.filter(
+          (tab) => !isMatchingOrNestedPath(tab.path, entry.path)
+        );
 
-      const nextTabs = openTabs.filter(
-        (tab) => !isMatchingOrNestedPath(tab.path, entry.path)
-      );
-      const isActiveTabDeleted =
-        activeTabPath !== null && isMatchingOrNestedPath(activeTabPath, entry.path);
+        setActiveTabPath((currentPath) => {
+          if (!currentPath || !isMatchingOrNestedPath(currentPath, entry.path)) {
+            return currentPath;
+          }
 
-      setOpenTabs(nextTabs);
-      if (isActiveTabDeleted) {
-        setActiveTabPath(getActiveFallbackPath(openTabs, nextTabs));
-      }
+          return getActiveFallbackPath(currentTabs, nextTabs, currentPath);
+        });
+
+        return nextTabs;
+      });
 
       await loadTree();
       setError(null);
@@ -552,8 +560,16 @@ export function AppShell() {
 
       const nextTab = createTabState(result.document);
 
-      setOpenTabs((currentTabs) => [...currentTabs, nextTab]);
-      setActiveTabPath(requestPath);
+      setOpenTabs((currentTabs) => {
+        const currentExistingTab = currentTabs.find((tab) => tab.path === requestPath);
+        if (currentExistingTab) {
+          setActiveTabPath(currentExistingTab.path);
+          return currentTabs;
+        }
+
+        setActiveTabPath(requestPath);
+        return [...currentTabs, nextTab];
+      });
       setError(null);
     } catch (loadError) {
       setActionError('Failed to open request.', loadError);

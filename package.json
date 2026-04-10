@@ -12,7 +12,7 @@
     "build:electron": "node -e \"require('fs').rmSync('dist-electron', { recursive: true, force: true })\" && tsc -p tsconfig.node.json",
     "build": "npm run build:ui && npm run build:electron",
     "start": "node scripts/run-electron.js .",
-    "pack": "npm run build && electron-builder",
+    "pack": "npm run build && node --no-deprecation ./node_modules/electron-builder/cli.js",
     "test": "vitest",
     "lint": "node scripts/run-lint.js"
   },

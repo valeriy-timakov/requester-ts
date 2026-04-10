@@ -5,7 +5,7 @@ const { spawn } = require('node:child_process');
 let electronCliPath;
 try {
   electronCliPath = require.resolve('electron/cli.js');
-} catch (error) {
+} catch {
   console.error('Cannot resolve Electron CLI. Did you run "npm ci"?');
   process.exit(1);
 }

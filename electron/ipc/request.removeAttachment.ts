@@ -1,21 +1,11 @@
 import { ipcMain } from 'electron';
 import path from 'path';
 import { getCurrentRootFolder } from '../services/projectService';
+import {
+  isPathInsideRoot,
+  resolvePathFromRoot
+} from '../services/pathSafety';
 import { removeAttachmentFromRequestFile } from '../services/requestFileService';
-
-function normalizePath(filePath: string): string {
-  return path.normalize(filePath).replace(/\\/g, '/');
-}
-
-function isPathInsideRoot(rootPath: string, candidatePath: string): boolean {
-  const normalizedRoot = normalizePath(path.resolve(rootPath));
-  const normalizedCandidate = normalizePath(path.resolve(candidatePath));
-
-  return (
-    normalizedCandidate === normalizedRoot ||
-    normalizedCandidate.startsWith(`${normalizedRoot}/`)
-  );
-}
 
 export function registerRequestRemoveAttachmentHandlers(): void {
   ipcMain.handle(
@@ -26,7 +16,7 @@ export function registerRequestRemoveAttachmentHandlers(): void {
       attachmentRelativePath: string
     ) => {
       const rootFolder = await getCurrentRootFolder();
-      const absoluteRequestPath = path.resolve(rootFolder, requestPath);
+      const absoluteRequestPath = resolvePathFromRoot(rootFolder, requestPath);
 
       if (!isPathInsideRoot(rootFolder, absoluteRequestPath)) {
         throw new Error('Request path must be inside the current root folder.');
